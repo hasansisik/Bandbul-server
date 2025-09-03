@@ -50,6 +50,14 @@ const ProfileSchema = new mongoose.Schema({
     type: String,
     default: "https://i.ibb.co/WNGQcHLF/profile.png",
   },
+  bio: {
+    type: String,
+    maxlength: [500, 'Biyografi 500 karakterden uzun olamaz']
+  },
+  skills: [{
+    type: String,
+    trim: true
+  }],
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 });
 

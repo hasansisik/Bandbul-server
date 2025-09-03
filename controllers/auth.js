@@ -220,6 +220,8 @@ const getMyProfile = async (req, res, next) => {
       });
     }
 
+    console.log(user);
+
     res.status(200).json({
       success: true,
       user,
@@ -348,6 +350,8 @@ const editProfile = async (req, res) => {
       "gender",
       "weight",
       "height",
+      "bio",
+      "skills",
     ];
     const isValidOperation = updates.every((update) =>
       allowedUpdates.includes(update)
@@ -427,6 +431,36 @@ const editProfile = async (req, res) => {
         user.profile = profile._id;
       } else {
         user.profile.picture = req.body.picture;
+        await user.profile.save();
+      }
+    }
+
+    // Handle bio
+    if (req.body.bio !== undefined) {
+      if (!user.profile) {
+        const profile = new Profile({
+          bio: req.body.bio,
+          user: user._id,
+        });
+        await profile.save();
+        user.profile = profile._id;
+      } else {
+        user.profile.bio = req.body.bio;
+        await user.profile.save();
+      }
+    }
+
+    // Handle skills
+    if (req.body.skills !== undefined) {
+      if (!user.profile) {
+        const profile = new Profile({
+          skills: req.body.skills,
+          user: user._id,
+        });
+        await profile.save();
+        user.profile = profile._id;
+      } else {
+        user.profile.skills = req.body.skills;
         await user.profile.save();
       }
     }
