@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
+const Listing = require("./Listing");
 
 const AddressSchema = new mongoose.Schema({
   street: { type: String, trim: true },
@@ -100,6 +101,7 @@ const UserSchema = new mongoose.Schema(
     address: { type: mongoose.Schema.Types.ObjectId, ref: 'Address' },
     auth: { type: mongoose.Schema.Types.ObjectId, ref: 'Auth' }, 
     profile: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile' },
+    listings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Listing' }],
     expoPushToken: { type: String },
     courseTrial: { type: String },
     status: {
@@ -116,4 +118,4 @@ const UserSchema = new mongoose.Schema(
 
 const User = mongoose.model("User", UserSchema);
 
-module.exports = { User, Address, Auth, Profile };
+module.exports = { User, Address, Auth, Profile, Listing };

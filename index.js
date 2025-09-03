@@ -15,6 +15,8 @@ const connectDB = require('./config/connectDB');
 
 //routers
 const authRouter = require('./routers/auth');
+const listingRouter = require('./routers/listing');
+const listingCategoryRouter = require('./routers/listingCategory');
 
 //midlleware
 const notFoundMiddleware = require('./middleware/not-found')
@@ -39,6 +41,8 @@ app.use(express.urlencoded({ extended: true }));
 
 //routes
 app.use('/v1/auth', authRouter);
+app.use('/v1/listings', listingRouter);
+app.use('/v1/listing-categories', listingCategoryRouter);
 
 app.use(notFoundMiddleware);
 app.use(erorHandlerMiddleware);
