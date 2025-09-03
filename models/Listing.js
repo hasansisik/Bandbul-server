@@ -71,7 +71,7 @@ ListingSchema.virtual('authorInfo', {
   localField: 'user',
   foreignField: '_id',
   justOne: true,
-  select: 'name surname profile.picture'
+  select: 'name surname profile'
 });
 
 // Virtual for category info (name, active)

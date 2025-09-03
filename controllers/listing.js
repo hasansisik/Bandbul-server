@@ -101,8 +101,15 @@ const getAllListings = async (req, res, next) => {
     
     // Get listings with pagination
     const listings = await Listing.find(filter)
-      .populate('authorInfo')
+      .populate({
+        path: 'authorInfo',
+        populate: {
+          path: 'profile',
+          select: 'picture'
+        }
+      })
       .populate('categoryInfo')
+      .populate('user', 'name surname')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
@@ -131,8 +138,15 @@ const getListingById = async (req, res, next) => {
     const { id } = req.params;
 
     const listing = await Listing.findById(id)
-      .populate('authorInfo')
-      .populate('categoryInfo');
+      .populate({
+        path: 'authorInfo',
+        populate: {
+          path: 'profile',
+          select: 'picture'
+        }
+      })
+      .populate('categoryInfo')
+      .populate('user', 'name surname');
 
     if (!listing) {
       throw new CustomError.NotFoundError("İlan bulunamadı");
@@ -153,8 +167,15 @@ const getUserListings = async (req, res, next) => {
     const userId = req.user.userId;
 
     const listings = await Listing.find({ user: userId })
-      .populate('authorInfo')
+      .populate({
+        path: 'authorInfo',
+        populate: {
+          path: 'profile',
+          select: 'picture'
+        }
+      })
       .populate('categoryInfo')
+      .populate('user', 'name surname')
       .sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({
