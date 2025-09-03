@@ -67,6 +67,11 @@ const UserSchema = new mongoose.Schema(
       lowercase: true,
     },
     birthDate: { type: Date },
+    age: { 
+      type: Number,
+      min: [13, 'Yaş 13\'ten az olamaz'],
+      max: [120, 'Yaş 120\'den fazla olamaz']
+    },
     gender: { 
       type: String, 
       enum: ['male', 'female', 'other'],

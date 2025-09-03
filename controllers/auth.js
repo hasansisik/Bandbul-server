@@ -17,6 +17,7 @@ const register = async (req, res, next) => {
       courseTrial,
       picture,
       expoPushToken,
+      age,
     } = req.body;
 
     //check email
@@ -50,6 +51,7 @@ const register = async (req, res, next) => {
       username: email.split("@")[0],
       courseTrial,
       expoPushToken,
+      age,
       auth: auth._id,
       profile: profile._id,
       isVerified: false,
@@ -341,6 +343,7 @@ const editProfile = async (req, res) => {
       "courseTrial",
       "picture",
       "birthDate",
+      "age",
       "gender",
       "weight",
       "height",
@@ -386,6 +389,7 @@ const editProfile = async (req, res) => {
 
     // Handle new profile fields
     if (req.body.birthDate) user.birthDate = new Date(req.body.birthDate);
+    if (req.body.age) user.age = req.body.age;
     if (req.body.gender) user.gender = req.body.gender;
     if (req.body.weight) user.weight = req.body.weight;
     if (req.body.height) user.height = req.body.height;
