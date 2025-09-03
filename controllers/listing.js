@@ -1,5 +1,5 @@
 const Listing = require("../models/Listing");
-const User = require("../models/User");
+const { User } = require("../models/User");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
 const mongoose = require("mongoose");
@@ -51,6 +51,7 @@ const createListing = async (req, res, next) => {
       listing
     });
   } catch (error) {
+    console.log(error)
     next(error);
   }
 };
@@ -253,6 +254,7 @@ const deleteListing = async (req, res, next) => {
       message: "İlan başarıyla silindi"
     });
   } catch (error) {
+    console.error("Delete listing error:", error);
     next(error);
   }
 };
