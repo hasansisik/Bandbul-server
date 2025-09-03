@@ -19,6 +19,7 @@ const register = async (req, res, next) => {
       expoPushToken,
       age,
     } = req.body;
+    console.log(req.body);
 
     //check email
     const emailAlreadyExists = await User.findOne({ email });
@@ -522,8 +523,11 @@ const verifyPassword = async (req, res, next) => {
 //Email
 const verifyEmail = async (req, res) => {
   const { email, verificationCode } = req.body;
+  console.log(email, verificationCode);
 
   const user = await User.findOne({ email }).populate("auth");
+
+  console.log(user);
 
   if (!user) {
     return res.status(400).json({ message: "Kullanıcı bulunamadı." });

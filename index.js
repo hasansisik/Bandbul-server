@@ -7,7 +7,6 @@ const mongoSanitize = require('express-mongo-sanitize');
 const cors = require('cors');
 const app = express();
 
-
 // rest of the packages
 const morgan = require('morgan');
 
@@ -16,7 +15,6 @@ const connectDB = require('./config/connectDB');
 
 //routers
 const authRouter = require('./routers/auth');
-const seoRouter = require('./routers/seo');
 
 //midlleware
 const notFoundMiddleware = require('./middleware/not-found')
@@ -41,7 +39,6 @@ app.use(express.urlencoded({ extended: true }));
 
 //routes
 app.use('/v1/auth', authRouter);
-app.use('/v1/seo', seoRouter);
 
 app.use(notFoundMiddleware);
 app.use(erorHandlerMiddleware);
