@@ -1,0 +1,610 @@
+const { User, Auth, Profile, Address } = require("../models/User");
+const Token = require("../models/Token");
+const { StatusCodes } = require("http-status-codes");
+const CustomError = require("../errors");
+const { sendResetPasswordEmail, sendVerificationEmail } = require("../helpers");
+const { generateToken } = require("../services/token.service");
+const bcrypt = require("bcrypt");
+
+//Register
+const register = async (req, res, next) => {
+  try {
+    const {
+      name,
+      surname,
+      email,
+      password,
+      courseTrial,
+      picture,
+      expoPushToken,
+    } = req.body;
+
+    //check email
+    const emailAlreadyExists = await User.findOne({ email });
+    if (emailAlreadyExists) {
+      throw new CustomError.BadRequestError("Bu e-posta adresi zaten kayıtlı.");
+    }
+
+    //token create
+    const verificationCode = Math.floor(1000 + Math.random() * 9000);
+
+    // Create Auth document
+    const auth = new Auth({
+      password,
+      verificationCode,
+    });
+    await auth.save();
+
+    // Create Profile document
+    const profile = new Profile({
+      picture:
+        picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+    });
+    await profile.save();
+
+    // Create User with references
+    const user = new User({
+      name,
+      surname,
+      email,
+      username: email.split("@")[0],
+      courseTrial,
+      expoPushToken,
+      auth: auth._id,
+      profile: profile._id,
+      isVerified: false,
+    });
+
+    await user.save();
+
+    // Update auth and profile with user reference
+    auth.user = user._id;
+    profile.user = user._id;
+    await Promise.all([auth.save(), profile.save()]);
+
+    const accessToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.ACCESS_TOKEN_SECRET
+    );
+    const refreshToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      path: "/v1/auth/refreshtoken",
+      maxAge: 365 * 24 * 60 * 60 * 1000, //365 days
+    });
+
+    await sendVerificationEmail({
+      name: user.name,
+      email: user.email,
+      verificationCode,
+    });
+
+    res.json({
+      message:
+        "Kullanıcı başarıyla oluşturuldu. Lütfen email adresini doğrula.",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        picture: profile.picture,
+        courseTrial: user.courseTrial,
+        token: accessToken,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    console.log(error.message);
+    next(error);
+  }
+};
+
+//Login
+const login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      throw new CustomError.BadRequestError(
+        "Lütfen e-posta adresinizi ve şifrenizi girin"
+      );
+    }
+
+    const user = await User.findOne({ email })
+      .populate({
+        path: "auth",
+        select: "+password",
+      })
+      .populate("profile");
+
+    if (!user) {
+      throw new CustomError.UnauthenticatedError(
+        "Ne yazık ki böyle bir kullanıcı yok"
+      );
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(
+      password,
+      user.auth.password
+    );
+
+    if (!isPasswordCorrect) {
+      throw new CustomError.UnauthenticatedError("Kayıtlı şifreniz yanlış!");
+    }
+    if (!user.isVerified) {
+      // Generate new verification code and send email
+      const verificationCode = Math.floor(1000 + Math.random() * 9000);
+      user.auth.verificationCode = verificationCode;
+      await user.auth.save();
+
+      await sendVerificationEmail({
+        name: user.name,
+        email: user.email,
+        verificationCode: user.auth.verificationCode,
+      });
+
+      return res.status(403).json({
+        message: "Lütfen e-postanızı doğrulayın !",
+        requiresVerification: true,
+        email: user.email,
+      });
+    }
+
+    const accessToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.ACCESS_TOKEN_SECRET
+    );
+    const refreshToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      path: "/v1/auth/refreshtoken",
+      maxAge: 365 * 24 * 60 * 60 * 1000, //365 days
+    });
+
+    const token = new Token({
+      refreshToken,
+      accessToken,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      user: user._id,
+    });
+
+    await token.save();
+
+    res.json({
+      message: "login success.",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        picture:
+          user.profile?.picture ||
+          "https://i.ibb.co/WNGQcHLF/profile.png",
+        status: user.status,
+        courseTrial: user.courseTrial,
+        token: accessToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Get My Profile
+const getMyProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.userId)
+      .populate("profile")
+      .populate("address");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "Kullanıcı bulunamadı",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Logout
+const logout = async (req, res, next) => {
+  try {
+    await Token.findOneAndDelete({ user: req.user.userId });
+
+    res.clearCookie("refreshtoken", { path: "/v1/auth/refreshtoken" });
+
+    res.json({
+      message: "logged out !",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Forgot Password
+const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new CustomError.BadRequestError("Lütfen e-posta adresinizi girin.");
+  }
+
+  const user = await User.findOne({ email }).populate("auth");
+
+  if (user) {
+    const passwordToken = Math.floor(1000 + Math.random() * 9000);
+
+    await sendResetPasswordEmail({
+      name: user.name,
+      email: user.email,
+      passwordToken: passwordToken,
+    });
+
+    const tenMinutes = 1000 * 60 * 10;
+    const passwordTokenExpirationDate = new Date(Date.now() + tenMinutes);
+
+    user.auth.passwordToken = passwordToken;
+    user.auth.passwordTokenExpirationDate = passwordTokenExpirationDate;
+
+    await user.auth.save();
+  } else {
+    throw new CustomError.BadRequestError("Kullanıcı bulunamadı.");
+  }
+
+  res.status(StatusCodes.OK).json({
+    message: "Şifre sıfırlama bağlantısı için lütfen e-postanızı kontrol edin.",
+  });
+};
+
+//Reset Password
+const resetPassword = async (req, res) => {
+  try {
+    const { email, passwordToken, newPassword } = req.body;
+    console.log(email, passwordToken, newPassword);
+    if (!passwordToken || !newPassword) {
+      throw new CustomError.BadRequestError(
+        "Lütfen sıfırlama kodunu ve yeni şifrenizi girin."
+      );
+    }
+
+    const user = await User.findOne({ email }).populate({
+      path: "auth",
+      select: "+passwordToken +passwordTokenExpirationDate",
+    });
+
+    if (user) {
+      const currentDate = new Date();
+
+      // Convert passwordToken to string for comparison
+      if (user.auth.passwordToken === String(passwordToken)) {
+        if (currentDate > user.auth.passwordTokenExpirationDate) {
+          throw new CustomError.BadRequestError(
+            "Kodunuz süresi doldu. Lütfen tekrar deneyin."
+          );
+        }
+        user.auth.password = newPassword;
+        user.auth.passwordToken = null;
+        user.auth.passwordTokenExpirationDate = null;
+        await user.auth.save();
+        res.json({
+          message: "Şifre başarıyla sıfırlandı.",
+        });
+      } else {
+        res.status(400).json({
+          message: "Geçersiz sıfırlama kodu.",
+        });
+      }
+    } else {
+      res.status(404).json({
+        message: "Kullanıcı bulunamadı.",
+      });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Sistem hatası oluştu. Lütfen tekrar deneyin.",
+    });
+  }
+};
+
+//Edit Profile
+const editProfile = async (req, res) => {
+  try {
+    const updates = Object.keys(req.body);
+    const allowedUpdates = [
+      "name",
+      "surname",
+      "email",
+      "password",
+      "address",
+      "phoneNumber",
+      "courseTrial",
+      "picture",
+      "birthDate",
+      "gender",
+      "weight",
+      "height",
+    ];
+    const isValidOperation = updates.every((update) =>
+      allowedUpdates.includes(update)
+    );
+
+    if (!isValidOperation) {
+      return res
+        .status(400)
+        .send({ error: "Sistem hatası oluştu. Lütfen tekrar deneyin" });
+    }
+
+    const user = await User.findById(req.user.userId)
+      .populate("auth")
+      .populate("profile")
+      .populate("address");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Kullanıcı bulunamadı.",
+      });
+    }
+
+    if (req.body.email && req.body.email !== user.email) {
+      const verificationCode = Math.floor(1000 + Math.random() * 9000);
+      user.email = req.body.email;
+      user.auth.verificationCode = verificationCode;
+      user.isVerified = false;
+
+      await sendVerificationEmail({
+        name: user.name,
+        email: user.email,
+        verificationCode: verificationCode,
+      });
+    }
+
+    // Handle basic fields
+    if (req.body.name) user.name = req.body.name;
+    if (req.body.surname) user.surname = req.body.surname;
+    if (req.body.courseTrial) user.courseTrial = req.body.courseTrial;
+
+    // Handle new profile fields
+    if (req.body.birthDate) user.birthDate = new Date(req.body.birthDate);
+    if (req.body.gender) user.gender = req.body.gender;
+    if (req.body.weight) user.weight = req.body.weight;
+    if (req.body.height) user.height = req.body.height;
+
+    // Handle password
+    if (req.body.password) {
+      user.auth.password = req.body.password;
+      await user.auth.save();
+    }
+
+    // Handle phone number
+    if (req.body.phoneNumber) {
+      if (!user.profile) {
+        const profile = new Profile({
+          phoneNumber: req.body.phoneNumber,
+          user: user._id,
+        });
+        await profile.save();
+        user.profile = profile._id;
+      } else {
+        user.profile.phoneNumber = req.body.phoneNumber;
+        await user.profile.save();
+      }
+    }
+
+    // Handle profile picture
+    if (req.body.picture) {
+      if (!user.profile) {
+        const profile = new Profile({
+          picture: req.body.picture,
+          user: user._id,
+        });
+        await profile.save();
+        user.profile = profile._id;
+      } else {
+        user.profile.picture = req.body.picture;
+        await user.profile.save();
+      }
+    }
+
+    // Handle address
+    if (req.body.address) {
+      // Check if address is an object with the expected fields
+      const addressData = req.body.address;
+
+      if (!user.address) {
+        // Create new address
+        const address = new Address({
+          street: addressData.street || "",
+          city: addressData.city || "", // This is actually the district (ilçe)
+          state: addressData.state || "", // This is actually the province (il)
+          postalCode: addressData.postalCode || "",
+          country: addressData.country || "Turkey",
+          user: user._id,
+        });
+        await address.save();
+        user.address = address._id;
+      } else {
+        // Update existing address
+        if (addressData.street !== undefined)
+          user.address.street = addressData.street;
+        if (addressData.city !== undefined)
+          user.address.city = addressData.city; // District (ilçe)
+        if (addressData.state !== undefined)
+          user.address.state = addressData.state; // Province (il)
+        if (addressData.postalCode !== undefined)
+          user.address.postalCode = addressData.postalCode;
+        if (addressData.country !== undefined)
+          user.address.country = addressData.country;
+        await user.address.save();
+      }
+    }
+
+    await user.save();
+
+    res.json({
+      message: "Profil başarıyla güncellendi.",
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Sistem hatası oluştu. Lütfen tekrar deneyin",
+    });
+  }
+};
+
+//Verify Password
+const verifyPassword = async (req, res, next) => {
+  try {
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({
+        message: "Şifre gereklidir.",
+      });
+    }
+
+    const user = await User.findById(req.user.userId).populate({
+      path: "auth",
+      select: "+password",
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        message: "Kullanıcı bulunamadı.",
+      });
+    }
+
+    const isPasswordCorrect = await bcrypt.compare(
+      password,
+      user.auth.password
+    );
+
+    if (!isPasswordCorrect) {
+      return res.status(400).json({
+        message: "Yanlış şifre.",
+        isValid: false,
+      });
+    }
+
+    res.json({
+      message: "Şifre doğrulandı.",
+      isValid: true,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Email
+const verifyEmail = async (req, res) => {
+  const { email, verificationCode } = req.body;
+
+  const user = await User.findOne({ email }).populate("auth");
+
+  if (!user) {
+    return res.status(400).json({ message: "Kullanıcı bulunamadı." });
+  }
+
+  if (user.auth.verificationCode !== Number(verificationCode)) {
+    return res.status(400).json({ message: "Doğrulama kodu yanlış." });
+  }
+
+  user.isVerified = true;
+  user.auth.verificationCode = undefined;
+  await user.save();
+  await user.auth.save();
+
+  res.json({ message: "Hesap başarıyla doğrulandı." });
+};
+
+//Again Email
+const againEmail = async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email }).populate("auth");
+
+  if (!user) {
+    throw new Error("Kullanıcı bulunamadı.");
+  }
+
+  const verificationCode = Math.floor(1000 + Math.random() * 9000);
+
+  user.auth.verificationCode = verificationCode;
+  await user.auth.save();
+
+  await sendVerificationEmail({
+    name: user.name,
+    email: user.email,
+    verificationCode: user.auth.verificationCode,
+  });
+  res.json({ message: "Doğrulama kodu Gönderildi" });
+};
+
+//Delete Account
+const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "Kullanıcı bulunamadı.",
+      });
+    }
+    // Delete profile
+    if (user.profile) {
+      await Profile.findByIdAndDelete(user.profile);
+    }
+    // Delete auth
+    if (user.auth) {
+      await Auth.findByIdAndDelete(user.auth);
+    }
+    // Delete address
+    if (user.address) {
+      await Address.findByIdAndDelete(user.address);
+    }
+    // Delete tokens
+    await Token.deleteMany({ user: userId });
+    // Delete the user
+    await User.findByIdAndDelete(userId);
+    res.status(200).json({
+      message: "Hesabınız başarıyla silindi.",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  register,
+  login,
+  logout,
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+  getMyProfile,
+  againEmail,
+  editProfile,
+  verifyPassword,
+  deleteAccount,
+};
