@@ -220,11 +220,88 @@ const getMyProfile = async (req, res, next) => {
       });
     }
 
-    console.log(user);
-
     res.status(200).json({
       success: true,
       user,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Get All Users (Admin only)
+const getAllUsers = async (req, res, next) => {
+  try {
+    const { 
+      role, 
+      status, 
+      search,
+      page = 1,
+      limit = 20
+    } = req.query;
+
+    // Build filter object
+    const filter = {};
+    
+    if (role) filter.role = role;
+    if (status) filter.status = status;
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { surname: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+    
+    // Get users with pagination
+    const users = await User.find(filter)
+      .populate("profile")
+      .populate("address")
+      .select('-auth') // Don't send sensitive auth data
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    // Get total count for pagination
+    const total = await User.countDocuments(filter);
+
+    // Get user statistics
+    const stats = await User.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          admin: { $sum: { $cond: [{ $eq: ['$role', 'admin'] }, 1, 0] } },
+          moderator: { $sum: { $cond: [{ $eq: ['$role', 'moderator'] }, 1, 0] } },
+          user: { $sum: { $cond: [{ $eq: ['$role', 'user'] }, 1, 0] } },
+          active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } },
+          inactive: { $sum: { $cond: [{ $eq: ['$status', 'inactive'] }, 1, 0] } },
+          banned: { $sum: { $cond: [{ $eq: ['$status', 'banned'] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      users,
+      stats: stats[0] || {
+        total: 0,
+        admin: 0,
+        moderator: 0,
+        user: 0,
+        active: 0,
+        inactive: 0,
+        banned: 0
+      },
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
     });
   } catch (error) {
     next(error);
@@ -637,6 +714,53 @@ const deleteAccount = async (req, res, next) => {
   }
 };
 
+//Delete User (Admin only)
+const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if user exists
+    const user = await User.findById(id);
+    if (!user) {
+      throw new CustomError.NotFoundError("Kullanıcı bulunamadı");
+    }
+
+    // Check if admin is trying to delete themselves
+    if (id === req.user.userId) {
+      throw new CustomError.BadRequestError("Kendinizi silemezsiniz");
+    }
+
+    // Check if admin is trying to delete another admin
+    if (user.role === 'admin') {
+      throw new CustomError.UnauthorizedError("Admin kullanıcıları silemezsiniz");
+    }
+
+    // Delete profile
+    if (user.profile) {
+      await Profile.findByIdAndDelete(user.profile);
+    }
+    // Delete auth
+    if (user.auth) {
+      await Auth.findByIdAndDelete(user.auth);
+    }
+    // Delete address
+    if (user.address) {
+      await Address.findByIdAndDelete(user.address);
+    }
+    // Delete tokens
+    await Token.deleteMany({ user: id });
+    // Delete the user
+    await User.findByIdAndDelete(id);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Kullanıcı başarıyla silindi"
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -645,8 +769,10 @@ module.exports = {
   resetPassword,
   verifyEmail,
   getMyProfile,
+  getAllUsers,
   againEmail,
   editProfile,
   verifyPassword,
   deleteAccount,
+  deleteUser,
 };
