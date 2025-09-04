@@ -21,6 +21,7 @@ const contactRouter = require('./routers/contact');
 const settingsRouter = require('./routers/settings');
 const blogRouter = require('./routers/blog');
 const blogCategoryRouter = require('./routers/blogCategory');
+const messageRouter = require('./routers/message');
 
 //midlleware
 const notFoundMiddleware = require('./middleware/not-found')
@@ -51,6 +52,7 @@ app.use('/v1/contacts', contactRouter);
 app.use('/v1/settings', settingsRouter);
 app.use('/v1/blogs', blogRouter);
 app.use('/v1/blog-categories', blogCategoryRouter);
+app.use('/v1/messages', messageRouter);
 
 app.use(notFoundMiddleware);
 app.use(erorHandlerMiddleware);
@@ -67,9 +69,20 @@ const start = async () => {
             console.log('MongoDB connection skipped - MONGO_URL not configured');
         }
         
-        app.listen(port, () => {
+        const server = app.listen(port, () => {
             console.log(`App started on port ${port} : ${process.env.NODE_ENV}`);
         });
+
+        // Initialize WebSocket server
+        const SocketServer = require('./websocket/socketServer');
+        const socketServer = new SocketServer(server);
+        
+        // Make socket server accessible globally
+        app.set('socketServer', socketServer);
+        global.socketServer = socketServer;
+        
+        console.log('WebSocket server initialized');
+        
     } catch (error) {
         console.log(error);
     }

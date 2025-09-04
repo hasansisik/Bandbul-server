@@ -100,6 +100,7 @@ const UserSchema = new mongoose.Schema(
     auth: { type: mongoose.Schema.Types.ObjectId, ref: 'Auth' }, 
     profile: { type: mongoose.Schema.Types.ObjectId, ref: 'Profile' },
     listings: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Listing' }],
+    conversations: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Conversation' }],
     expoPushToken: { type: String },
     courseTrial: { type: String },
     status: {
