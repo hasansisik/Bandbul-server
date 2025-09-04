@@ -115,8 +115,26 @@ const getBlogBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
     
-    const blog = await Blog.findOne({ slug })
+    // Find blog by converting title to slug and matching
+    const blogs = await Blog.find({ status: 'published' })
       .populate('createdBy', 'name surname');
+    
+    // Function to create title slug for comparison
+    const createTitleSlug = (title) => {
+      return title.toLowerCase()
+        .replace(/ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/ş/g, 's')
+        .replace(/ı/g, 'i')
+        .replace(/ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+    };
+    
+    const blog = blogs.find(b => createTitleSlug(b.title) === slug);
 
     if (!blog) {
       throw new CustomError.NotFoundError("Blog yazısı bulunamadı");

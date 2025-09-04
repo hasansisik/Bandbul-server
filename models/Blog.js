@@ -8,12 +8,6 @@ const BlogSchema = new mongoose.Schema(
       trim: true,
       maxlength: [200, "Başlık 200 karakterden uzun olamaz"]
     },
-    slug: {
-      type: String,
-      unique: true,
-      lowercase: true,
-      trim: true
-    },
     excerpt: {
       type: String,
       maxlength: [500, "Özet 500 karakterden uzun olamaz"]
@@ -81,23 +75,8 @@ BlogSchema.index({ featured: 1 });
 BlogSchema.index({ status: 1 });
 BlogSchema.index({ publishedDate: -1 });
 
-// Pre-save middleware to generate slug
+// Pre-save middleware to generate categorySlug
 BlogSchema.pre('save', function(next) {
-  // Generate slug from title if not already set or if title is modified
-  if (this.isModified('title') || !this.slug) {
-    this.slug = this.title
-      .toLowerCase()
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ı/g, 'i')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .trim();
-  }
-  
   // Generate categorySlug from category if not already set or if category is modified
   if (this.isModified('category') || !this.categorySlug) {
     this.categorySlug = this.category
