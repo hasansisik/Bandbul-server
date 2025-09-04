@@ -19,6 +19,8 @@ const listingRouter = require('./routers/listing');
 const listingCategoryRouter = require('./routers/listingCategory');
 const contactRouter = require('./routers/contact');
 const settingsRouter = require('./routers/settings');
+const blogRouter = require('./routers/blog');
+const blogCategoryRouter = require('./routers/blogCategory');
 
 //midlleware
 const notFoundMiddleware = require('./middleware/not-found')
@@ -47,6 +49,8 @@ app.use('/v1/listings', listingRouter);
 app.use('/v1/listing-categories', listingCategoryRouter);
 app.use('/v1/contacts', contactRouter);
 app.use('/v1/settings', settingsRouter);
+app.use('/v1/blogs', blogRouter);
+app.use('/v1/blog-categories', blogCategoryRouter);
 
 app.use(notFoundMiddleware);
 app.use(erorHandlerMiddleware);
