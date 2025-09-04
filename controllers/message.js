@@ -3,6 +3,7 @@ const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
+const { createMessageReceivedNotification } = require("./notification");
 
 // Get all conversations for a user
 const getConversations = async (req, res, next) => {
@@ -204,6 +205,25 @@ const sendMessage = async (req, res, next) => {
       };
       
       global.socketServer.sendToConversation(conversationId, 'new_message', socketMessage);
+    }
+
+    // Create notification for other participants
+    try {
+      const otherParticipants = conversation.participants.filter(p => p.toString() !== userId);
+      const sender = await User.findById(userId).select('name surname');
+      const senderName = sender ? `${sender.name} ${sender.surname}` : 'Bilinmeyen';
+      
+      for (const participantId of otherParticipants) {
+        await createMessageReceivedNotification(
+          participantId, 
+          conversationId, 
+          senderName, 
+          content
+        );
+      }
+    } catch (notificationError) {
+      console.error('Message notification creation failed:', notificationError);
+      // Don't fail message sending if notification creation fails
     }
 
     res.status(StatusCodes.CREATED).json({

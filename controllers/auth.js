@@ -4,6 +4,7 @@ const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
 const { sendResetPasswordEmail, sendVerificationEmail } = require("../helpers");
 const { generateToken } = require("../services/token.service");
+const { createWelcomeNotification } = require("./notification");
 const bcrypt = require("bcrypt");
 
 //Register
@@ -87,6 +88,14 @@ const register = async (req, res, next) => {
       email: user.email,
       verificationCode,
     });
+
+    // Create welcome notification
+    try {
+      await createWelcomeNotification(user._id);
+    } catch (notificationError) {
+      console.error('Welcome notification creation failed:', notificationError);
+      // Don't fail registration if notification creation fails
+    }
 
     res.json({
       message:

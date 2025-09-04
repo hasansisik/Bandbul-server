@@ -2,6 +2,7 @@ const Listing = require("../models/Listing");
 const { User } = require("../models/User");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
+const { createListingCreatedNotification } = require("./notification");
 const mongoose = require("mongoose");
 
 // Create new listing
@@ -44,6 +45,14 @@ const createListing = async (req, res, next) => {
     // Populate author info and category info
     await listing.populate('authorInfo');
     await listing.populate('categoryInfo');
+
+    // Create listing created notification
+    try {
+      await createListingCreatedNotification(userId, listing._id, listing.title);
+    } catch (notificationError) {
+      console.error('Listing created notification failed:', notificationError);
+      // Don't fail listing creation if notification creation fails
+    }
 
     res.status(StatusCodes.CREATED).json({
       success: true,

@@ -22,6 +22,7 @@ const settingsRouter = require('./routers/settings');
 const blogRouter = require('./routers/blog');
 const blogCategoryRouter = require('./routers/blogCategory');
 const messageRouter = require('./routers/message');
+const notificationRouter = require('./routers/notification');
 
 //midlleware
 const notFoundMiddleware = require('./middleware/not-found')
@@ -53,6 +54,7 @@ app.use('/v1/settings', settingsRouter);
 app.use('/v1/blogs', blogRouter);
 app.use('/v1/blog-categories', blogCategoryRouter);
 app.use('/v1/messages', messageRouter);
+app.use('/v1/notifications', notificationRouter);
 
 app.use(notFoundMiddleware);
 app.use(erorHandlerMiddleware);
