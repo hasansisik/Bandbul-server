@@ -30,8 +30,22 @@ const isAdmin = async function (req, res, next) {
   next();
 };
 
+// Dashboard middleware - checks if user is authenticated and has admin role
+const isDashboardAccess = async function (req, res, next) {
+  if (!req.user) {
+    return next(createHttpError.Unauthorized("Giriş yapmanız gerekiyor"));
+  }
+  
+  if (req.user.role !== "admin") {
+    return next(createHttpError.Forbidden("Bu sayfaya erişim yetkiniz bulunmamaktadır"));
+  }
+  
+  next();
+};
+
 module.exports = {
   isAuthenticated,
   isUser,
-  isAdmin
+  isAdmin,
+  isDashboardAccess
 };
