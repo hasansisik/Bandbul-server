@@ -72,18 +72,8 @@ const SettingsSchema = new mongoose.Schema(
         }
       }],
       listings: [{
-        name: {
-          type: String,
-          required: [true, "İlan link adı gereklidir"],
-          trim: true,
-          maxlength: [50, "İlan link adı 50 karakterden uzun olamaz"]
-        },
-        href: {
-          type: String,
-          required: [true, "İlan link adresi gereklidir"],
-          trim: true,
-          maxlength: [200, "İlan link adresi 200 karakterden uzun olamaz"]
-        }
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'ListingCategory'
       }],
       support: [{
         name: {
@@ -184,6 +174,14 @@ const SettingsSchema = new mongoose.Schema(
 SettingsSchema.virtual('populatedCategories', {
   ref: 'ListingCategory',
   localField: 'header.categories',
+  foreignField: '_id',
+  justOne: false
+});
+
+// Virtual for populated footer listings categories
+SettingsSchema.virtual('populatedFooterListings', {
+  ref: 'ListingCategory',
+  localField: 'footer.listings',
   foreignField: '_id',
   justOne: false
 });

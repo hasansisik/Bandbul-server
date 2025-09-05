@@ -7,6 +7,7 @@ const getSettings = async (req, res, next) => {
   try {
     const settings = await Settings.findOne({ isActive: true })
       .populate('populatedCategories')
+      .populate('populatedFooterListings')
       .select('-__v');
 
     if (!settings) {
@@ -31,6 +32,7 @@ const getSettingsAdmin = async (req, res, next) => {
   try {
     const settings = await Settings.findOne({ isActive: true })
       .populate('populatedCategories')
+      .populate('populatedFooterListings')
       .select('-__v');
 
     if (!settings) {
@@ -71,6 +73,7 @@ const createSettings = async (req, res, next) => {
 
     // Populate categories
     await settings.populate('populatedCategories');
+    await settings.populate('populatedFooterListings');
 
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -103,6 +106,19 @@ const updateSettings = async (req, res, next) => {
         if (updates[key].mainMenu) {
           settings.header.mainMenu = updates[key].mainMenu;
         }
+      } else if (key === 'footer' && updates[key].listings) {
+        // Handle footer listings categories array specially
+        settings.footer.listings = updates[key].listings;
+        // Update other footer fields
+        if (updates[key].main) {
+          settings.footer.main = updates[key].main;
+        }
+        if (updates[key].support) {
+          settings.footer.support = updates[key].support;
+        }
+        if (updates[key].social) {
+          settings.footer.social = updates[key].social;
+        }
       } else if (key === 'logo') {
         // Handle logo update with new structure
         if (updates[key].light) {
@@ -111,7 +127,7 @@ const updateSettings = async (req, res, next) => {
         if (updates[key].dark) {
           settings.logo.dark = updates[key].dark;
         }
-      } else if (key !== 'header') {
+      } else if (key !== 'header' && key !== 'footer') {
         // Update other fields
         settings[key] = updates[key];
       }
@@ -121,6 +137,7 @@ const updateSettings = async (req, res, next) => {
 
     // Populate categories
     await settings.populate('populatedCategories');
+    await settings.populate('populatedFooterListings');
 
     res.status(StatusCodes.OK).json({
       success: true,
