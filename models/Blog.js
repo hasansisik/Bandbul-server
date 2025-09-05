@@ -34,11 +34,6 @@ const BlogSchema = new mongoose.Schema(
       required: [true, "Kategori gereklidir"],
       trim: true
     },
-    categorySlug: {
-      type: String,
-      lowercase: true,
-      trim: true
-    },
     tags: [{
       type: String,
       trim: true
@@ -75,24 +70,21 @@ BlogSchema.index({ featured: 1 });
 BlogSchema.index({ status: 1 });
 BlogSchema.index({ publishedDate: -1 });
 
-// Pre-save middleware to generate categorySlug
-BlogSchema.pre('save', function(next) {
-  // Generate categorySlug from category if not already set or if category is modified
-  if (this.isModified('category') || !this.categorySlug) {
-    this.categorySlug = this.category
-      .toLowerCase()
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ı/g, 'i')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-      .replace(/\s+/g, '-')
-      .trim();
-  }
-  
-  next();
-});
+// Helper function to create slug from title
+BlogSchema.methods.createSlug = function() {
+  return this.title
+    .toLowerCase()
+    .replace(/ğ/g, 'g')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ç/g, 'c')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim();
+};
 
 const Blog = mongoose.model("Blog", BlogSchema);
 

@@ -110,6 +110,7 @@ const getBlogById = async (req, res, next) => {
   }
 };
 
+
 // Get Blog by Slug (Public - no authentication required)
 const getBlogBySlug = async (req, res, next) => {
   try {
@@ -137,11 +138,6 @@ const getBlogBySlug = async (req, res, next) => {
     const blog = blogs.find(b => createTitleSlug(b.title) === slug);
 
     if (!blog) {
-      throw new CustomError.NotFoundError("Blog yazısı bulunamadı");
-    }
-
-    // Only show published blogs to non-admin users
-    if (blog.status !== 'published' && (!req.user || req.user.role !== 'admin')) {
       throw new CustomError.NotFoundError("Blog yazısı bulunamadı");
     }
 
@@ -197,7 +193,6 @@ const createBlog = async (req, res, next) => {
     });
   } catch (error) {
     console.log(error);
-
     next(error);
   }
 };
