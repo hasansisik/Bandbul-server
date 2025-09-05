@@ -29,6 +29,24 @@ const erorHandlerMiddleware = (err, req, res, next) => {
         customError.statusCode = 404;
     }
 
+    // Handle mongoose connection errors
+    if (err.name === "MongoNetworkError" || err.name === "MongoTimeoutError") {
+        customError.message = "Veritabanı bağlantısında sorun yaşanıyor. Lütfen tekrar deneyin.";
+        customError.statusCode = 503;
+    }
+
+    // Handle mongoose validation errors
+    if (err.name === "MongooseError") {
+        customError.message = "Veritabanı işleminde hata oluştu. Lütfen tekrar deneyin.";
+        customError.statusCode = 500;
+    }
+
+    // Handle undefined mongoose errors
+    if (err.message && err.message.includes("mongoose is not defined")) {
+        customError.message = "Sunucu yapılandırmasında hata. Lütfen daha sonra tekrar deneyin.";
+        customError.statusCode = 500;
+    }
+
     return res.status(customError.statusCode).json({ message: customError.message });
 
 };

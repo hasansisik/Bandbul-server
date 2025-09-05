@@ -1,6 +1,7 @@
 const Notification = require("../models/Notification");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
+const mongoose = require("mongoose");
 
 // Create new notification (system only)
 const createNotification = async (req, res, next) => {
@@ -195,10 +196,15 @@ const getNotificationStats = async (req, res, next) => {
   try {
     const userId = req.user.userId;
 
+    // Validate ObjectId format
+    if (!mongoose.isValidObjectId(userId)) {
+      throw new CustomError.BadRequestError("Geçersiz kullanıcı ID'si");
+    }
+
     const stats = await Notification.aggregate([
       {
         $match: {
-          user: mongoose.Types.ObjectId(userId),
+          user: new mongoose.Types.ObjectId(userId),
           isDeleted: false
         }
       },
