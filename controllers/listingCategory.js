@@ -2,6 +2,7 @@ const ListingCategory = require("../models/ListingCategory");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
 
+
 // Create new category (admin only)
 const createCategory = async (req, res, next) => {
   try {
@@ -130,7 +131,7 @@ const deleteCategory = async (req, res, next) => {
 
     // Check if category is being used in any listings
     const Listing = require("../models/Listing");
-    const listingCount = await Listing.countDocuments({ category: category.name });
+    const listingCount = await Listing.countDocuments({ category: id });
     
     if (listingCount > 0) {
       throw new CustomError.BadRequestError("Bu kategori kullanılan ilanlarda bulunduğu için silinemez");

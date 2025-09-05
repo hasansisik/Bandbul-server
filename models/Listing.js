@@ -12,7 +12,7 @@ const ListingSchema = new mongoose.Schema(
       type: String, 
       required: [true, "İlan açıklaması gereklidir"], 
       trim: true,
-      maxlength: [1000, "İlan açıklaması 1000 karakterden uzun olamaz"]
+      maxlength: [2000, "İlan açıklaması 2000 karakterden uzun olamaz"]
     },
     category: { 
       type: mongoose.Schema.Types.ObjectId, 

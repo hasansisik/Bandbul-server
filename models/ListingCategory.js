@@ -6,7 +6,6 @@ const ListingCategorySchema = new mongoose.Schema(
       type: String, 
       required: [true, "Kategori adı gereklidir"], 
       trim: true,
-      unique: true,
       maxlength: [50, "Kategori adı 50 karakterden uzun olamaz"]
     },
     active: { 
@@ -18,6 +17,7 @@ const ListingCategorySchema = new mongoose.Schema(
     timestamps: true 
   }
 );
+
 
 // Index for better query performance
 ListingCategorySchema.index({ name: 1 });
