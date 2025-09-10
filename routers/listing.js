@@ -6,7 +6,10 @@ const {
   getUserListings,
   updateListing,
   deleteListing,
-  toggleListingStatus
+  toggleListingStatus,
+  approveListing,
+  rejectListing,
+  getPendingListings
 } = require('../controllers/listing');
 const { isAuthenticated } = require('../middleware/authMiddleware');
 
@@ -22,5 +25,10 @@ router.get('/user/me', isAuthenticated, getUserListings);
 router.put('/:id', isAuthenticated, updateListing);
 router.delete('/:id', isAuthenticated, deleteListing);
 router.patch('/:id/toggle-status', isAuthenticated, toggleListingStatus);
+
+// Admin routes
+router.get('/admin/pending', isAuthenticated, getPendingListings);
+router.patch('/:id/approve', isAuthenticated, approveListing);
+router.patch('/:id/reject', isAuthenticated, rejectListing);
 
 module.exports = router;

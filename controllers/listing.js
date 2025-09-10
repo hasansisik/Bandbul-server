@@ -20,6 +20,13 @@ const createListing = async (req, res, next) => {
     } = req.body;
 
     const userId = req.user.userId;
+    const userRole = req.user.role;
+
+    // Determine initial status based on user role
+    let initialStatus = 'pending'; // Default for regular users
+    if (userRole === 'admin') {
+      initialStatus = 'active'; // Admin listings are automatically approved
+    }
 
     // Create the listing
     const listing = new Listing({
@@ -31,8 +38,15 @@ const createListing = async (req, res, next) => {
       experience,
       instrument,
       type: type || category,
-      user: userId
+      user: userId,
+      status: initialStatus
     });
+
+    // If admin, set approval info
+    if (userRole === 'admin') {
+      listing.approvedBy = userId;
+      listing.approvedAt = new Date();
+    }
 
     await listing.save();
 
@@ -76,12 +90,25 @@ const getAllListings = async (req, res, next) => {
       instrument, 
       experience, 
       search,
+      status,
       page = 1,
       limit = 20
     } = req.query;
 
     // Build filter object
-    const filter = { status: 'active' };
+    const filter = {};
+    
+    // If status is specified, filter by status, otherwise show active listings for public access
+    if (status) {
+      if (status === 'all') {
+        // Don't add status filter to show all listings
+      } else {
+        filter.status = status;
+      }
+    } else {
+      // Default to active for public access
+      filter.status = 'active';
+    }
     
     if (category) {
       // Check if category is ObjectId or name
@@ -201,11 +228,12 @@ const getUserListings = async (req, res, next) => {
   }
 };
 
-// Update listing (only owner can update)
+// Update listing (owner or admin can update)
 const updateListing = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const userRole = req.user.role;
 
     const listing = await Listing.findById(id);
 
@@ -213,8 +241,8 @@ const updateListing = async (req, res, next) => {
       throw new CustomError.NotFoundError("İlan bulunamadı");
     }
 
-    // Check if user owns the listing
-    if (listing.user.toString() !== userId) {
+    // Check if user owns the listing or is admin
+    if (listing.user.toString() !== userId && userRole !== 'admin') {
       throw new CustomError.UnauthorizedError("Bu işlem için yetkiniz yok");
     }
 
@@ -242,6 +270,14 @@ const updateListing = async (req, res, next) => {
       listing.type = req.body.category;
     }
 
+    // If any field is updated and listing was active, set status to pending for re-approval
+    if (listing.status === 'active' && updates.length > 0) {
+      listing.status = 'pending';
+      // Clear previous approval info
+      listing.approvedBy = undefined;
+      listing.approvedAt = undefined;
+    }
+
     await listing.save();
 
     // Populate author info and category info
@@ -259,11 +295,12 @@ const updateListing = async (req, res, next) => {
   }
 };
 
-// Delete listing (only owner can delete)
+// Delete listing (owner or admin can delete)
 const deleteListing = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const userRole = req.user.role;
 
     const listing = await Listing.findById(id);
 
@@ -271,14 +308,14 @@ const deleteListing = async (req, res, next) => {
       throw new CustomError.NotFoundError("İlan bulunamadı");
     }
 
-    // Check if user owns the listing
-    if (listing.user.toString() !== userId) {
+    // Check if user owns the listing or is admin
+    if (listing.user.toString() !== userId && userRole !== 'admin') {
       throw new CustomError.UnauthorizedError("Bu işlem için yetkiniz yok");
     }
 
-    // Remove listing from user's listings array
+    // Remove listing from the original owner's listings array
     await User.findByIdAndUpdate(
-      userId,
+      listing.user,
       { $pull: { listings: listing._id } }
     );
 
@@ -295,11 +332,12 @@ const deleteListing = async (req, res, next) => {
   }
 };
 
-// Toggle listing status (active/inactive)
+// Toggle listing status (active/inactive/archived)
 const toggleListingStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const userRole = req.user.role;
 
     const listing = await Listing.findById(id);
 
@@ -307,19 +345,127 @@ const toggleListingStatus = async (req, res, next) => {
       throw new CustomError.NotFoundError("İlan bulunamadı");
     }
 
-    // Check if user owns the listing
-    if (listing.user.toString() !== userId) {
+    // Check if user owns the listing or is admin
+    if (listing.user.toString() !== userId && userRole !== 'admin') {
       throw new CustomError.UnauthorizedError("Bu işlem için yetkiniz yok");
     }
 
-    // Toggle status between active and inactive
-    listing.status = listing.status === 'active' ? 'inactive' : 'active';
+    // Toggle status between active, inactive, and archived
+    if (listing.status === 'active') {
+      listing.status = 'archived';
+    } else if (listing.status === 'archived') {
+      listing.status = 'active';
+    } else if (listing.status === 'inactive') {
+      listing.status = 'active';
+    } else {
+      listing.status = 'archived';
+    }
+    
     await listing.save();
 
     res.status(StatusCodes.OK).json({
       success: true,
-      message: `İlan durumu ${listing.status === 'active' ? 'aktif' : 'pasif'} olarak güncellendi`,
+      message: `İlan durumu ${listing.status === 'active' ? 'aktif' : listing.status === 'archived' ? 'arsivlendi' : 'pasif'} olarak güncellendi`,
       listing
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admin approve listing
+const approveListing = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.userId;
+
+    const listing = await Listing.findById(id);
+
+    if (!listing) {
+      throw new CustomError.NotFoundError("İlan bulunamadı");
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      throw new CustomError.UnauthorizedError("Bu işlem için admin yetkisi gereklidir");
+    }
+
+    listing.status = 'active';
+    listing.approvedBy = adminId;
+    listing.approvedAt = new Date();
+    listing.rejectionReason = undefined; // Clear any previous rejection reason
+
+    await listing.save();
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "İlan başarıyla onaylandı",
+      listing
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Admin reject listing
+const rejectListing = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const adminId = req.user.userId;
+
+    const listing = await Listing.findById(id);
+
+    if (!listing) {
+      throw new CustomError.NotFoundError("İlan bulunamadı");
+    }
+
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      throw new CustomError.UnauthorizedError("Bu işlem için admin yetkisi gereklidir");
+    }
+
+    listing.status = 'rejected';
+    listing.rejectionReason = reason || 'Belirtilmemiş neden';
+    listing.approvedBy = undefined;
+    listing.approvedAt = undefined;
+
+    await listing.save();
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "İlan reddedildi",
+      listing
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get pending listings for admin
+const getPendingListings = async (req, res, next) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      throw new CustomError.UnauthorizedError("Bu işlem için admin yetkisi gereklidir");
+    }
+
+    const listings = await Listing.find({ status: 'pending' })
+      .populate({
+        path: 'authorInfo',
+        populate: {
+          path: 'profile',
+          select: 'picture'
+        }
+      })
+      .populate('categoryInfo')
+      .populate('instrumentInfo')
+      .populate('user', 'name surname')
+      .sort({ createdAt: -1 });
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      listings
     });
   } catch (error) {
     next(error);
@@ -333,5 +479,8 @@ module.exports = {
   getUserListings,
   updateListing,
   deleteListing,
-  toggleListingStatus
+  toggleListingStatus,
+  approveListing,
+  rejectListing,
+  getPendingListings
 };

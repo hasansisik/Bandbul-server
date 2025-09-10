@@ -47,10 +47,21 @@ const ListingSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: {
-        values: ['active', 'inactive', 'expired'],
+        values: ['active', 'pending', 'archived', 'rejected'],
         message: '{VALUE} geçerli bir durum değil'
       },
-      default: 'active'
+      default: 'pending'
+    },
+    rejectionReason: {
+      type: String,
+      trim: true
+    },
+    approvedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    approvedAt: {
+      type: Date
     },
     user: { 
       type: mongoose.Schema.Types.ObjectId, 
