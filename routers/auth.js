@@ -1,11 +1,14 @@
 const express = require('express');
-const {register,login,getMyProfile,getAllUsers,logout,forgotPassword,resetPassword,verifyEmail,againEmail,editProfile,verifyPassword,deleteAccount,deleteUser} = require('../controllers/auth');
+const {register,googleRegister,googleAuth,login,googleLogin,getMyProfile,getAllUsers,logout,forgotPassword,resetPassword,verifyEmail,againEmail,editProfile,verifyPassword,deleteAccount,deleteUser} = require('../controllers/auth');
 const {isAuthenticated, isAdmin} = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
 router.post('/register',register);
+router.post('/google-register',googleRegister);
+router.post('/google-auth',googleAuth);
 router.post('/login',login);
+router.post('/google-login',googleLogin);
 router.get("/me", isAuthenticated, getMyProfile);
 router.get('/logout',isAuthenticated,logout);
 router.post('/forgot-password', forgotPassword);

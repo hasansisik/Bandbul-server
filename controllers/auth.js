@@ -727,6 +727,283 @@ const deleteAccount = async (req, res, next) => {
   }
 };
 
+//Google Auth (Unified Login/Register)
+const googleAuth = async (req, res, next) => {
+  try {
+    const { email, name, surname, picture, googleId } = req.body;
+
+    if (!email || !name || !googleId) {
+      throw new CustomError.BadRequestError("Google bilgileri eksik");
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ email })
+      .populate("profile")
+      .populate("auth");
+
+    let isNewUser = false;
+
+    if (!user) {
+      // Create new user
+      isNewUser = true;
+      
+      // Create Auth document (minimal for Google users)
+      const auth = new Auth({
+        password: "google_oauth_user", // Dummy password for Google users
+        verificationCode: undefined, // Google users don't need email verification
+      });
+      await auth.save();
+
+      // Create Profile document
+      const profile = new Profile({
+        picture: picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+      });
+      await profile.save();
+
+      // Create User with references
+      user = new User({
+        name,
+        surname: surname || 'User',
+        email,
+        username: email.split("@")[0],
+        expoPushToken: null,
+        auth: auth._id,
+        profile: profile._id,
+        isVerified: true, // Google users are automatically verified
+      });
+
+      await user.save();
+
+      // Update auth and profile with user reference
+      auth.user = user._id;
+      profile.user = user._id;
+      await Promise.all([auth.save(), profile.save()]);
+
+      // Create welcome notification for new users
+      try {
+        await createWelcomeNotification(user._id);
+      } catch (notificationError) {
+        console.error('Welcome notification creation failed:', notificationError);
+        // Don't fail registration if notification creation fails
+      }
+    } else {
+      // Update existing user if needed
+      if (!user.isVerified) {
+        user.isVerified = true;
+        await user.save();
+      }
+    }
+
+    // Generate tokens
+    const accessToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.ACCESS_TOKEN_SECRET
+    );
+    const refreshToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      path: "/v1/auth/refreshtoken",
+      maxAge: 365 * 24 * 60 * 60 * 1000, //365 days
+    });
+
+    const token = new Token({
+      refreshToken,
+      accessToken,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      user: user._id,
+    });
+
+    await token.save();
+
+    res.json({
+      message: isNewUser ? "Google ile kayıt başarılı." : "Google ile giriş başarılı.",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        picture: user.profile?.picture || picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+        status: user.status,
+        courseTrial: user.courseTrial,
+        theme: user.theme,
+        token: accessToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Google Login
+const googleLogin = async (req, res, next) => {
+  try {
+    const { email, name, surname, picture, googleId } = req.body;
+
+    if (!email || !name || !surname || !googleId) {
+      throw new CustomError.BadRequestError("Google bilgileri eksik");
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ email })
+      .populate("profile")
+      .populate("auth");
+
+    if (!user) {
+      throw new CustomError.UnauthenticatedError("Kullanıcı bulunamadı. Lütfen önce kayıt olun.");
+    }
+
+    // Check if user is verified (Google users are automatically verified)
+    if (!user.isVerified) {
+      user.isVerified = true;
+      await user.save();
+    }
+
+    // Generate tokens
+    const accessToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.ACCESS_TOKEN_SECRET
+    );
+    const refreshToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      path: "/v1/auth/refreshtoken",
+      maxAge: 365 * 24 * 60 * 60 * 1000, //365 days
+    });
+
+    const token = new Token({
+      refreshToken,
+      accessToken,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+      user: user._id,
+    });
+
+    await token.save();
+
+    res.json({
+      message: "Google ile giriş başarılı.",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        picture: user.profile?.picture || picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+        status: user.status,
+        courseTrial: user.courseTrial,
+        theme: user.theme,
+        token: accessToken,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+//Google Register
+const googleRegister = async (req, res, next) => {
+  try {
+    const { email, name, surname, picture, googleId } = req.body;
+
+    if (!email || !name || !surname || !googleId) {
+      throw new CustomError.BadRequestError("Google bilgileri eksik");
+    }
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new CustomError.BadRequestError("Bu e-posta adresi zaten kayıtlı.");
+    }
+
+    // Create Auth document (minimal for Google users)
+    const auth = new Auth({
+      password: "google_oauth_user", // Dummy password for Google users
+      verificationCode: undefined, // Google users don't need email verification
+    });
+    await auth.save();
+
+    // Create Profile document
+    const profile = new Profile({
+      picture: picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+    });
+    await profile.save();
+
+    // Create User with references
+    const user = new User({
+      name,
+      surname,
+      email,
+      username: email.split("@")[0],
+      expoPushToken: null,
+      auth: auth._id,
+      profile: profile._id,
+      isVerified: true, // Google users are automatically verified
+    });
+
+    await user.save();
+
+    // Update auth and profile with user reference
+    auth.user = user._id;
+    profile.user = user._id;
+    await Promise.all([auth.save(), profile.save()]);
+
+    const accessToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.ACCESS_TOKEN_SECRET
+    );
+    const refreshToken = await generateToken(
+      { userId: user._id, role: user.role },
+      "365d",
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      path: "/v1/auth/refreshtoken",
+      maxAge: 365 * 24 * 60 * 60 * 1000, //365 days
+    });
+
+    // Create welcome notification
+    try {
+      await createWelcomeNotification(user._id);
+    } catch (notificationError) {
+      console.error('Welcome notification creation failed:', notificationError);
+      // Don't fail registration if notification creation fails
+    }
+
+    res.json({
+      message: "Google ile kayıt başarılı.",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        picture: profile.picture,
+        courseTrial: user.courseTrial,
+        theme: user.theme,
+        token: accessToken,
+      },
+    });
+  } catch (error) {
+    console.log(error);
+    console.log(error.message);
+    next(error);
+  }
+};
+
 //Delete User (Admin only)
 const deleteUser = async (req, res, next) => {
   try {
@@ -776,7 +1053,10 @@ const deleteUser = async (req, res, next) => {
 
 module.exports = {
   register,
+  googleRegister,
+  googleAuth,
   login,
+  googleLogin,
   logout,
   forgotPassword,
   resetPassword,
