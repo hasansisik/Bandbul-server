@@ -110,6 +110,14 @@ const UserSchema = new mongoose.Schema(
         message: '{VALUE} geçerli bir durum değil'
       },
       default: 'active'
+    },
+    theme: {
+      type: String,
+      enum: {
+        values: ['light', 'dark'],
+        message: '{VALUE} geçerli bir tema değil'
+      },
+      default: 'light'
     }
   },
   { timestamps: true }

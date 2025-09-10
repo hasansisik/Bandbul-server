@@ -107,6 +107,7 @@ const register = async (req, res, next) => {
         email: user.email,
         picture: profile.picture,
         courseTrial: user.courseTrial,
+        theme: user.theme,
         token: accessToken,
       },
     });
@@ -207,6 +208,7 @@ const login = async (req, res, next) => {
           "https://i.ibb.co/WNGQcHLF/profile.png",
         status: user.status,
         courseTrial: user.courseTrial,
+        theme: user.theme,
         token: accessToken,
       },
     });
@@ -438,6 +440,7 @@ const editProfile = async (req, res) => {
       "height",
       "bio",
       "skills",
+      "theme",
     ];
     const isValidOperation = updates.every((update) =>
       allowedUpdates.includes(update)
@@ -477,6 +480,7 @@ const editProfile = async (req, res) => {
     if (req.body.name) user.name = req.body.name;
     if (req.body.surname) user.surname = req.body.surname;
     if (req.body.courseTrial) user.courseTrial = req.body.courseTrial;
+    if (req.body.theme) user.theme = req.body.theme;
 
     // Handle new profile fields
     if (req.body.birthDate) user.birthDate = new Date(req.body.birthDate);
