@@ -37,8 +37,8 @@ const ListingSchema = new mongoose.Schema(
       }
     },
     instrument: { 
-      type: String, 
-      trim: true 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: 'Instrument'
     },
     type: { 
       type: String, 
@@ -78,6 +78,15 @@ ListingSchema.virtual('authorInfo', {
 ListingSchema.virtual('categoryInfo', {
   ref: 'ListingCategory',
   localField: 'category',
+  foreignField: '_id',
+  justOne: true,
+  select: 'name active'
+});
+
+// Virtual for instrument info (name, active)
+ListingSchema.virtual('instrumentInfo', {
+  ref: 'Instrument',
+  localField: 'instrument',
   foreignField: '_id',
   justOne: true,
   select: 'name active'

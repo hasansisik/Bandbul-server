@@ -42,9 +42,11 @@ const createListing = async (req, res, next) => {
       { $push: { listings: listing._id } }
     );
 
-    // Populate author info and category info
+    // Populate author info, category info and instrument info
     await listing.populate('authorInfo');
     await listing.populate('categoryInfo');
+    await listing.populate('instrumentInfo');
+    await listing.populate('instrumentInfo');
 
     // Create listing created notification
     try {
@@ -118,6 +120,7 @@ const getAllListings = async (req, res, next) => {
         }
       })
       .populate('categoryInfo')
+      .populate('instrumentInfo')
       .populate('user', 'name surname')
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -155,6 +158,7 @@ const getListingById = async (req, res, next) => {
         }
       })
       .populate('categoryInfo')
+      .populate('instrumentInfo')
       .populate('user', 'name surname');
 
     if (!listing) {
@@ -184,6 +188,7 @@ const getUserListings = async (req, res, next) => {
         }
       })
       .populate('categoryInfo')
+      .populate('instrumentInfo')
       .populate('user', 'name surname')
       .sort({ createdAt: -1 });
 
@@ -242,6 +247,7 @@ const updateListing = async (req, res, next) => {
     // Populate author info and category info
     await listing.populate('authorInfo');
     await listing.populate('categoryInfo');
+    await listing.populate('instrumentInfo');
 
     res.status(StatusCodes.OK).json({
       success: true,
