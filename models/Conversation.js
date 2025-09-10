@@ -51,14 +51,8 @@ ConversationSchema.pre('save', function(next) {
 ConversationSchema.index({ lastMessageAt: -1 });
 ConversationSchema.index({ 'participants': 1, 'lastMessageAt': -1 });
 
-// Compound unique index to ensure only one conversation between two users
-ConversationSchema.index(
-  { participants: 1, type: 1 }, 
-  { 
-    unique: true,
-    name: 'unique_participants_per_type'
-  }
-);
+// For direct conversations, we'll handle uniqueness in the application logic
+// since MongoDB array unique indexes don't work well with our use case
 
 const Conversation = mongoose.model("Conversation", ConversationSchema);
 

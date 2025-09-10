@@ -6,13 +6,17 @@ const {
   startConversation,
   markAsRead,
   getUnreadCount,
-  cleanupDuplicateConversations
+  cleanupDuplicateConversations,
+  removeUniqueIndex
 } = require('../controllers/message');
 const { isAuthenticated } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-// All routes require authentication
+// Remove unique index (admin/development) - no auth required
+router.post('/remove-unique-index', removeUniqueIndex);
+
+// All other routes require authentication
 router.use(isAuthenticated);
 
 // Get all conversations for the authenticated user
@@ -35,5 +39,6 @@ router.get('/unread-count', getUnreadCount);
 
 // Cleanup duplicate conversations (admin/development)
 router.post('/cleanup-duplicates', cleanupDuplicateConversations);
+
 
 module.exports = router;

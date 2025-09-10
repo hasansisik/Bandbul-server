@@ -28,8 +28,23 @@ const getConversations = async (req, res, next) => {
     })
     .sort({ lastMessageAt: -1 });
 
+    // Remove duplicate conversations (same participants)
+    const uniqueConversations = [];
+    const seenPairs = new Set();
+    
+    for (const conv of conversations) {
+      const otherParticipant = conv.participants.find(p => p._id.toString() !== userId);
+      if (otherParticipant) {
+        const pairKey = [userId, otherParticipant._id.toString()].sort().join('-');
+        if (!seenPairs.has(pairKey)) {
+          seenPairs.add(pairKey);
+          uniqueConversations.push(conv);
+        }
+      }
+    }
+
     // Format conversations for frontend
-    const formattedConversations = conversations.map(conv => {
+    const formattedConversations = uniqueConversations.map(conv => {
       const otherParticipant = conv.participants.find(p => p._id.toString() !== userId);
       const unreadCount = 0; // We'll implement this later with aggregation
 
@@ -262,56 +277,62 @@ const startConversation = async (req, res, next) => {
     // Sort participants to ensure consistent order
     const sortedParticipants = [userId, recipientId].sort();
 
-    // Check if conversation already exists
+    // Check if conversation already exists (try both orders)
     let conversation = await Conversation.findOne({
-      participants: { $all: sortedParticipants, $size: 2 },
+      $or: [
+        { participants: { $all: sortedParticipants, $size: 2 } },
+        { participants: { $all: [recipientId, userId], $size: 2 } }
+      ],
       type: 'direct',
       isActive: true
     });
 
     if (!conversation) {
-      // Use findOneAndUpdate with upsert for atomic operation
+      // Create new conversation
       try {
-        conversation = await Conversation.findOneAndUpdate(
-          {
-            participants: { $all: sortedParticipants, $size: 2 },
-            type: 'direct'
-          },
-          {
-            $setOnInsert: {
+        conversation = new Conversation({
+          participants: sortedParticipants,
+          type: 'direct',
+          isActive: true,
+          lastMessageAt: new Date()
+        });
+        
+        await conversation.save();
+      } catch (error) {
+        // If creation fails due to duplicate, try to find existing conversation
+        if (error.code === 11000 || error.message.includes('duplicate')) {
+          conversation = await Conversation.findOne({
+            $or: [
+              { participants: { $all: sortedParticipants, $size: 2 } },
+              { participants: { $all: [recipientId, userId], $size: 2 } }
+            ],
+            type: 'direct',
+            isActive: true
+          });
+          
+          if (!conversation) {
+            // Instead of throwing error, create a simple conversation
+            conversation = new Conversation({
               participants: sortedParticipants,
               type: 'direct',
               isActive: true,
               lastMessageAt: new Date()
-            }
-          },
-          {
-            upsert: true,
-            new: true,
-            setDefaultsOnInsert: true
+            });
+            await conversation.save();
           }
-        );
-      } catch (error) {
-        // If upsert fails, try to find existing conversation
-        conversation = await Conversation.findOne({
-          participants: { $all: sortedParticipants, $size: 2 },
-          type: 'direct',
-          isActive: true
-        });
-        
-        if (!conversation) {
-          throw new Error('Failed to create or find conversation: ' + error.message);
+        } else {
+          throw error;
         }
       }
-
-      // Add conversation to both users
-      await User.findByIdAndUpdate(userId, {
-        $addToSet: { conversations: conversation._id }
-      });
-      await User.findByIdAndUpdate(recipientId, {
-        $addToSet: { conversations: conversation._id }
-      });
     }
+
+    // Add conversation to both users
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { conversations: conversation._id }
+    });
+    await User.findByIdAndUpdate(recipientId, {
+      $addToSet: { conversations: conversation._id }
+    });
 
     // Populate conversation data
     await conversation.populate([
@@ -464,6 +485,48 @@ const cleanupDuplicateConversations = async (req, res, next) => {
   }
 };
 
+// Remove unique index from conversations collection
+const removeUniqueIndex = async (req, res, next) => {
+  try {
+    const db = Conversation.db;
+    const collection = db.collection('conversations');
+    
+    // List all indexes
+    const indexes = await collection.indexes();
+    console.log('Current indexes:');
+    indexes.forEach(index => {
+      console.log('- Name:', index.name, 'Keys:', index.key);
+    });
+    
+    // Drop the unique index
+    try {
+      await collection.dropIndex('unique_participants_per_type');
+      console.log('Successfully dropped unique_participants_per_type index');
+    } catch (error) {
+      console.log('Index not found or already dropped:', error.message);
+    }
+    
+    // List indexes again to verify
+    const newIndexes = await collection.indexes();
+    console.log('Remaining indexes:');
+    newIndexes.forEach(index => {
+      console.log('- Name:', index.name, 'Keys:', index.key);
+    });
+    
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: 'Unique index removed successfully',
+      remainingIndexes: newIndexes.map(index => ({
+        name: index.name,
+        keys: index.key
+      }))
+    });
+  } catch (error) {
+    console.error('Error removing index:', error);
+    next(error);
+  }
+};
+
 module.exports = {
   getConversations,
   getMessages,
@@ -471,5 +534,6 @@ module.exports = {
   startConversation,
   markAsRead,
   getUnreadCount,
-  cleanupDuplicateConversations
+  cleanupDuplicateConversations,
+  removeUniqueIndex
 };
