@@ -456,6 +456,65 @@ const getUnreadCount = async (req, res, next) => {
   }
 };
 
+// Poll for new messages (for production polling)
+const pollMessages = async (req, res, next) => {
+  try {
+    const userId = req.user.userId;
+    const since = req.query.since ? new Date(req.query.since) : new Date(Date.now() - 60000); // Default to last minute
+
+    // Get user's conversations
+    const conversations = await Conversation.find({
+      participants: userId,
+      isActive: true
+    }).distinct('_id');
+
+    // Get new messages since the given time
+    const messages = await Message.find({
+      conversation: { $in: conversations },
+      sender: { $ne: userId },
+      createdAt: { $gt: since }
+    })
+    .populate([
+      {
+        path: 'sender',
+        select: 'name surname profile',
+        populate: {
+          path: 'profile',
+          select: 'picture'
+        }
+      },
+      {
+        path: 'conversation',
+        select: 'participants'
+      }
+    ])
+    .sort({ createdAt: 1 });
+
+    // Format messages for frontend
+    const formattedMessages = messages.map(message => ({
+      id: message._id,
+      conversationId: message.conversation._id,
+      content: message.content,
+      sender: {
+        _id: message.sender._id,
+        name: message.sender.name,
+        surname: message.sender.surname,
+        picture: message.sender.profile?.picture
+      },
+      timestamp: message.createdAt.toISOString(),
+      isRead: message.isRead
+    }));
+
+    res.status(StatusCodes.OK).json({ 
+      success: true,
+      messages: formattedMessages,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Cleanup duplicate conversations utility
 const cleanupDuplicateConversations = async (req, res, next) => {
   try {
@@ -547,6 +606,7 @@ module.exports = {
   startConversation,
   markAsRead,
   getUnreadCount,
+  pollMessages,
   cleanupDuplicateConversations,
   removeUniqueIndex
 };

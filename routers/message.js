@@ -6,6 +6,7 @@ const {
   startConversation,
   markAsRead,
   getUnreadCount,
+  pollMessages,
   cleanupDuplicateConversations,
   removeUniqueIndex
 } = require('../controllers/message');
@@ -36,6 +37,9 @@ router.patch('/conversations/:conversationId/read', markAsRead);
 
 // Get unread message count
 router.get('/unread-count', getUnreadCount);
+
+// Poll for new messages (for production)
+router.get('/poll', pollMessages);
 
 // Cleanup duplicate conversations (admin/development)
 router.post('/cleanup-duplicates', cleanupDuplicateConversations);

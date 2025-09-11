@@ -31,13 +31,28 @@ const notFoundMiddleware = require('./middleware/not-found')
 const erorHandlerMiddleware = require('./middleware/eror-handler')
 
 app.use(cors({
-    origin: true,
+    origin: [
+        'http://localhost:3000',
+        'https://bandbul.vercel.app',
+        'https://bandbul-nextjs.vercel.app'
+    ],
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
     exposedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // For preflight OPTIONS requests
-app.options('*', cors());
+app.options('*', cors({
+    origin: [
+        'http://localhost:3000',
+        'https://bandbul.vercel.app',
+        'https://bandbul-nextjs.vercel.app'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
 
 app.use(helmet());
 app.use(mongoSanitize());
@@ -76,13 +91,19 @@ const start = async () => {
         const server = app.listen(port, () => {
         });
 
-        // Initialize WebSocket server
-        const SocketServer = require('./websocket/socketServer');
-        const socketServer = new SocketServer(server);
-        
-        // Make socket server accessible globally
-        app.set('socketServer', socketServer);
-        global.socketServer = socketServer;
+        // Initialize WebSocket server only in development
+        if (process.env.NODE_ENV !== 'production') {
+            const SocketServer = require('./websocket/socketServer');
+            const socketServer = new SocketServer(server);
+            
+            // Make socket server accessible globally
+            app.set('socketServer', socketServer);
+            global.socketServer = socketServer;
+        } else {
+            // In production, set socketServer to null
+            app.set('socketServer', null);
+            global.socketServer = null;
+        }
         
         
     } catch (error) {
