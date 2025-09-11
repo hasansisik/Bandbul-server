@@ -15,7 +15,6 @@ const seedCategories = async () => {
     // Connect to MongoDB (you'll need to set your connection string)
     // await mongoose.connect(process.env.MONGO_URL);
     
-    console.log("Seeding categories...");
     
     // Clear existing categories
     await ListingCategory.deleteMany({});
@@ -23,15 +22,10 @@ const seedCategories = async () => {
     // Insert new categories
     const categories = await ListingCategory.insertMany(initialCategories);
     
-    console.log(`Successfully seeded ${categories.length} categories:`);
-    categories.forEach(cat => {
-      console.log(`- ${cat.name} (ID: ${cat._id})`);
-    });
     
     // Disconnect
     // await mongoose.disconnect();
     
-    console.log("Category seeding completed!");
   } catch (error) {
     console.error("Error seeding categories:", error);
   }

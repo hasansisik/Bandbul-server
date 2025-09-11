@@ -493,25 +493,15 @@ const removeUniqueIndex = async (req, res, next) => {
     
     // List all indexes
     const indexes = await collection.indexes();
-    console.log('Current indexes:');
-    indexes.forEach(index => {
-      console.log('- Name:', index.name, 'Keys:', index.key);
-    });
     
     // Drop the unique index
     try {
       await collection.dropIndex('unique_participants_per_type');
-      console.log('Successfully dropped unique_participants_per_type index');
     } catch (error) {
-      console.log('Index not found or already dropped:', error.message);
     }
     
     // List indexes again to verify
     const newIndexes = await collection.indexes();
-    console.log('Remaining indexes:');
-    newIndexes.forEach(index => {
-      console.log('- Name:', index.name, 'Keys:', index.key);
-    });
     
     res.status(StatusCodes.OK).json({
       success: true,

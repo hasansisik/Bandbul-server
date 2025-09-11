@@ -20,7 +20,6 @@ const register = async (req, res, next) => {
       expoPushToken,
       age,
     } = req.body;
-    console.log(req.body);
 
     //check email
     const emailAlreadyExists = await User.findOne({ email });
@@ -112,8 +111,6 @@ const register = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.log(error);
-    console.log(error.message);
     next(error);
   }
 };
@@ -373,7 +370,6 @@ const forgotPassword = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { email, passwordToken, newPassword } = req.body;
-    console.log(email, passwordToken, newPassword);
     if (!passwordToken || !newPassword) {
       throw new CustomError.BadRequestError(
         "Lütfen sıfırlama kodunu ve yeni şifrenizi girin."
@@ -647,11 +643,7 @@ const verifyPassword = async (req, res, next) => {
 //Email
 const verifyEmail = async (req, res) => {
   const { email, verificationCode } = req.body;
-  console.log(email, verificationCode);
-
   const user = await User.findOne({ email }).populate("auth");
-
-  console.log(user);
 
   if (!user) {
     return res.status(400).json({ message: "Kullanıcı bulunamadı." });
@@ -998,8 +990,6 @@ const googleRegister = async (req, res, next) => {
       },
     });
   } catch (error) {
-    console.log(error);
-    console.log(error.message);
     next(error);
   }
 };

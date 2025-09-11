@@ -68,13 +68,10 @@ const start = async () => {
         // Only connect to MongoDB if MONGO_URL is provided and valid
         if (process.env.MONGO_URL && process.env.MONGO_URL !== 'your_mongodb_url_here' && process.env.MONGO_URL.startsWith('mongodb')) {
             await connectDB(process.env.MONGO_URL);
-            console.log(`MongoDB Connection Successful`);
         } else {
-            console.log('MongoDB connection skipped - MONGO_URL not configured');
         }
         
         const server = app.listen(port, () => {
-            console.log(`App started on port ${port} : ${process.env.NODE_ENV}`);
         });
 
         // Initialize WebSocket server
@@ -85,10 +82,8 @@ const start = async () => {
         app.set('socketServer', socketServer);
         global.socketServer = socketServer;
         
-        console.log('WebSocket server initialized');
         
     } catch (error) {
-        console.log(error);
     }
 };
 

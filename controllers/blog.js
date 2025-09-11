@@ -192,7 +192,6 @@ const createBlog = async (req, res, next) => {
       blog
     });
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };
@@ -252,7 +251,6 @@ const updateBlog = async (req, res, next) => {
       blog
     });
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };

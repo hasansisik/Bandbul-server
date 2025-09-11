@@ -76,7 +76,6 @@ const createListing = async (req, res, next) => {
       listing
     });
   } catch (error) {
-    console.log(error)
     next(error);
   }
 };

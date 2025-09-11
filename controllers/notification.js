@@ -40,7 +40,6 @@ const createNotification = async (req, res, next) => {
       notification
     });
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };

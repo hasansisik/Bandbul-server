@@ -45,7 +45,6 @@ class SocketServer {
 
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
-      console.log(`User ${socket.user.name} connected with socket ID: ${socket.id}`);
       
       // Store user connection
       this.connectedUsers.set(socket.userId, socket.id);
@@ -56,13 +55,11 @@ class SocketServer {
       // Handle joining conversation
       socket.on('join_conversation', (conversationId) => {
         socket.join(`conversation_${conversationId}`);
-        console.log(`User ${socket.user.name} joined conversation ${conversationId}`);
       });
 
       // Handle leaving conversation
       socket.on('leave_conversation', (conversationId) => {
         socket.leave(`conversation_${conversationId}`);
-        console.log(`User ${socket.user.name} left conversation ${conversationId}`);
       });
 
       // Handle sending messages
@@ -127,7 +124,6 @@ class SocketServer {
 
       // Handle disconnect
       socket.on('disconnect', () => {
-        console.log(`User ${socket.user.name} disconnected`);
         this.connectedUsers.delete(socket.userId);
         this.broadcastUserStatus(socket.userId, false);
       });

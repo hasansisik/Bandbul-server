@@ -30,7 +30,6 @@ const createContact = async (req, res, next) => {
       contact
     });
   } catch (error) {
-    console.log(error);
     next(error);
   }
 };
