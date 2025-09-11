@@ -4,6 +4,7 @@ const Conversation = require("../models/Conversation");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
 const { createMessageReceivedNotification } = require("./notification");
+const { sendToUser, broadcast } = require("../routers/sse");
 
 // Get all conversations for a user
 const getConversations = async (req, res, next) => {
@@ -220,6 +221,28 @@ const sendMessage = async (req, res, next) => {
       };
       
       global.socketServer.sendToConversation(conversationId, 'new_message', socketMessage);
+    }
+
+    // Send SSE notification to conversation participants
+    const sseMessage = {
+      id: message._id,
+      conversationId: conversationId,
+      content: message.content,
+      sender: {
+        _id: message.sender._id,
+        name: message.sender.name,
+        surname: message.sender.surname,
+        picture: message.sender.profile?.picture
+      },
+      timestamp: message.createdAt.toISOString(),
+      isRead: message.isRead
+    };
+
+    // Send to all participants in the conversation
+    for (const participantId of conversation.participants) {
+      if (participantId.toString() !== userId) {
+        sendToUser(participantId.toString(), 'new_message', sseMessage);
+      }
     }
 
     // Create notification for other participants

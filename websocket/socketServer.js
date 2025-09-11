@@ -6,10 +6,16 @@ class SocketServer {
   constructor(server) {
     this.io = new Server(server, {
       cors: {
-        origin: process.env.CLIENT_URL || "http://localhost:3000",
+        origin: [
+          process.env.CLIENT_URL || "http://localhost:3000",
+          "https://bandbul.vercel.app",
+          "http://localhost:3000"
+        ],
         methods: ["GET", "POST"],
         credentials: true
-      }
+      },
+      transports: ['polling', 'websocket'],
+      allowEIO3: true
     });
     
     this.connectedUsers = new Map(); // userId -> socketId mapping
