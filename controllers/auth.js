@@ -1041,6 +1041,48 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
+//Update User Role (Admin only)
+const updateUserRole = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    // Validate role
+    if (!role || !['admin', 'user'].includes(role)) {
+      throw new CustomError.BadRequestError("Geçersiz rol. Sadece 'admin' veya 'user' rolleri kabul edilir");
+    }
+
+    // Check if user exists
+    const user = await User.findById(id);
+    if (!user) {
+      throw new CustomError.NotFoundError("Kullanıcı bulunamadı");
+    }
+
+    // Check if admin is trying to change their own role
+    if (id === req.user.userId) {
+      throw new CustomError.BadRequestError("Kendi rolünüzü değiştiremezsiniz");
+    }
+
+    // Update user role
+    user.role = role;
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Kullanıcı rolü başarıyla güncellendi",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   googleRegister,
@@ -1058,4 +1100,5 @@ module.exports = {
   verifyPassword,
   deleteAccount,
   deleteUser,
+  updateUserRole,
 };

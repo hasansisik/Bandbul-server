@@ -28,6 +28,11 @@ const ConversationSchema = new mongoose.Schema(
     name: {
       type: String,
       trim: true
+    },
+    // Reference to the listing this conversation is about
+    listing: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Listing'
     }
   },
   { timestamps: true }

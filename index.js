@@ -89,6 +89,7 @@ const start = async () => {
         }
         
         const server = app.listen(port, () => {
+            console.log(`MongoDb Connection Successful,App started on port ${port} : ${process.env.NODE_ENV}`);
         });
 
         // Initialize WebSocket server only in development

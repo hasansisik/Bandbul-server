@@ -27,6 +27,10 @@ const getConversations = async (req, res, next) => {
       path: 'lastMessage',
       select: 'content sender createdAt'
     })
+    .populate({
+      path: 'listing',
+      select: 'title image category'
+    })
     .sort({ lastMessageAt: -1 });
 
     // Remove duplicate conversations (same participants)
@@ -57,6 +61,12 @@ const getConversations = async (req, res, next) => {
         timestamp: conv.lastMessageAt,
         unreadCount,
         isOnline: false, // We'll implement this with WebSocket
+        listing: conv.listing ? {
+          _id: conv.listing._id,
+          title: conv.listing.title,
+          image: conv.listing.image,
+          category: conv.listing.category
+        } : null,
         otherParticipant: {
           _id: otherParticipant._id,
           name: otherParticipant.name,
@@ -280,7 +290,7 @@ const sendMessage = async (req, res, next) => {
 // Start a new conversation
 const startConversation = async (req, res, next) => {
   try {
-    const { recipientId } = req.body;
+    const { recipientId, listingId } = req.body;
     const userId = req.user.userId;
 
     if (!recipientId) {
@@ -317,7 +327,8 @@ const startConversation = async (req, res, next) => {
           participants: sortedParticipants,
           type: 'direct',
           isActive: true,
-          lastMessageAt: new Date()
+          lastMessageAt: new Date(),
+          listing: listingId || null
         });
         
         await conversation.save();
@@ -339,7 +350,8 @@ const startConversation = async (req, res, next) => {
               participants: sortedParticipants,
               type: 'direct',
               isActive: true,
-              lastMessageAt: new Date()
+              lastMessageAt: new Date(),
+              listing: listingId || null
             });
             await conversation.save();
           }
@@ -366,6 +378,10 @@ const startConversation = async (req, res, next) => {
           path: 'profile',
           select: 'picture'
         }
+      },
+      {
+        path: 'listing',
+        select: 'title image category'
       }
     ]);
 
@@ -379,6 +395,12 @@ const startConversation = async (req, res, next) => {
       timestamp: conversation.createdAt,
       unreadCount: 0,
       isOnline: false,
+      listing: conversation.listing ? {
+        _id: conversation.listing._id,
+        title: conversation.listing.title,
+        image: conversation.listing.image,
+        category: conversation.listing.category
+      } : null,
       otherParticipant: {
         _id: otherParticipant._id,
         name: otherParticipant.name,
