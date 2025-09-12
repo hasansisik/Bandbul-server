@@ -32,7 +32,14 @@ const ConversationSchema = new mongoose.Schema(
     // Reference to the listing this conversation is about
     listing: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Listing'
+      ref: 'Listing',
+      required: true // Make listing required for all conversations
+    },
+    // Unique identifier for conversation (participants + listing)
+    conversationKey: {
+      type: String,
+      unique: true,
+      required: false // Will be set in pre-save middleware
     }
   },
   { timestamps: true }
@@ -49,12 +56,30 @@ ConversationSchema.pre('save', function(next) {
     this.participants.sort((a, b) => a.toString().localeCompare(b.toString()));
   }
   
+  // Generate conversation key (participants + listing)
+  if (this.participants.length === 2 && this.listing) {
+    const sortedParticipants = this.participants.map(p => p.toString()).sort();
+    this.conversationKey = `${sortedParticipants[0]}-${sortedParticipants[1]}-${this.listing}`;
+  }
+  
+  // Ensure conversationKey is set
+  if (!this.conversationKey && this.participants.length === 2 && this.listing) {
+    const sortedParticipants = this.participants.map(p => p.toString()).sort();
+    this.conversationKey = `${sortedParticipants[0]}-${sortedParticipants[1]}-${this.listing}`;
+  }
+  
+  // Validate that conversationKey is set
+  if (!this.conversationKey) {
+    return next(new Error('conversationKey is required'));
+  }
+  
   next();
 });
 
 // Index for better query performance
 ConversationSchema.index({ lastMessageAt: -1 });
 ConversationSchema.index({ 'participants': 1, 'lastMessageAt': -1 });
+ConversationSchema.index({ conversationKey: 1 });
 
 // For direct conversations, we'll handle uniqueness in the application logic
 // since MongoDB array unique indexes don't work well with our use case

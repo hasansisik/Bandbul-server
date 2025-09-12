@@ -33,23 +33,8 @@ const getConversations = async (req, res, next) => {
     })
     .sort({ lastMessageAt: -1 });
 
-    // Remove duplicate conversations (same participants)
-    const uniqueConversations = [];
-    const seenPairs = new Set();
-    
-    for (const conv of conversations) {
-      const otherParticipant = conv.participants.find(p => p._id.toString() !== userId);
-      if (otherParticipant) {
-        const pairKey = [userId, otherParticipant._id.toString()].sort().join('-');
-        if (!seenPairs.has(pairKey)) {
-          seenPairs.add(pairKey);
-          uniqueConversations.push(conv);
-        }
-      }
-    }
-
-    // Format conversations for frontend
-    const formattedConversations = uniqueConversations.map(conv => {
+    // Format conversations for frontend (no duplicate filtering - show all conversations)
+    const formattedConversations = conversations.map(conv => {
       const otherParticipant = conv.participants.find(p => p._id.toString() !== userId);
       const unreadCount = 0; // We'll implement this later with aggregation
 
@@ -72,7 +57,8 @@ const getConversations = async (req, res, next) => {
           name: otherParticipant.name,
           surname: otherParticipant.surname,
           picture: otherParticipant.profile?.picture
-        }
+        },
+        conversationKey: conv.conversationKey
       };
     });
 
@@ -297,6 +283,10 @@ const startConversation = async (req, res, next) => {
       throw new CustomError.BadRequestError("Alıcı ID gereklidir");
     }
 
+    if (!listingId) {
+      throw new CustomError.BadRequestError("İlan ID gereklidir");
+    }
+
     if (recipientId === userId) {
       throw new CustomError.BadRequestError("Kendinizle konuşma başlatamazsınız");
     }
@@ -307,56 +297,71 @@ const startConversation = async (req, res, next) => {
       throw new CustomError.NotFoundError("Alıcı bulunamadı");
     }
 
+    // Check if listing exists
+    const Listing = require("../models/Listing");
+    const listing = await Listing.findById(listingId);
+    if (!listing) {
+      throw new CustomError.NotFoundError("İlan bulunamadı");
+    }
+
     // Sort participants to ensure consistent order
     const sortedParticipants = [userId, recipientId].sort();
+    const conversationKey = `${sortedParticipants[0]}-${sortedParticipants[1]}-${listingId}`;
 
-    // Check if conversation already exists (try both orders)
+    // Check if conversation already exists for this specific listing
     let conversation = await Conversation.findOne({
-      $or: [
-        { participants: { $all: sortedParticipants, $size: 2 } },
-        { participants: { $all: [recipientId, userId], $size: 2 } }
-      ],
-      type: 'direct',
-      isActive: true
+      conversationKey: conversationKey
     });
 
+    // Fallback: if conversationKey lookup fails, try by participants and listing
     if (!conversation) {
-      // Create new conversation
+      conversation = await Conversation.findOne({
+        participants: { $all: sortedParticipants, $size: 2 },
+        listing: listingId,
+        type: 'direct',
+        isActive: true
+      });
+    }
+
+    if (!conversation) {
+      // Use findOneAndUpdate with upsert to prevent race conditions
       try {
-        conversation = new Conversation({
-          participants: sortedParticipants,
-          type: 'direct',
-          isActive: true,
-          lastMessageAt: new Date(),
-          listing: listingId || null
+        conversation = await Conversation.findOneAndUpdate(
+          {
+            conversationKey: conversationKey
+          },
+          {
+            participants: sortedParticipants,
+            type: 'direct',
+            isActive: true,
+            lastMessageAt: new Date(),
+            listing: listingId,
+            conversationKey: conversationKey
+          },
+          {
+            upsert: true,
+            new: true,
+            setDefaultsOnInsert: true
+          }
+        );
+      } catch (error) {
+        // If upsert fails, try to find existing conversation
+        conversation = await Conversation.findOne({
+          conversationKey: conversationKey
         });
         
-        await conversation.save();
-      } catch (error) {
-        // If creation fails due to duplicate, try to find existing conversation
-        if (error.code === 11000 || error.message.includes('duplicate')) {
+        // Fallback: if conversationKey lookup fails, try by participants and listing
+        if (!conversation) {
           conversation = await Conversation.findOne({
-            $or: [
-              { participants: { $all: sortedParticipants, $size: 2 } },
-              { participants: { $all: [recipientId, userId], $size: 2 } }
-            ],
+            participants: { $all: sortedParticipants, $size: 2 },
+            listing: listingId,
             type: 'direct',
             isActive: true
           });
-          
-          if (!conversation) {
-            // Instead of throwing error, create a simple conversation
-            conversation = new Conversation({
-              participants: sortedParticipants,
-              type: 'direct',
-              isActive: true,
-              lastMessageAt: new Date(),
-              listing: listingId || null
-            });
-            await conversation.save();
-          }
-        } else {
-          throw error;
+        }
+        
+        if (!conversation) {
+          throw new CustomError.BadRequestError("Konuşma oluşturulamadı");
         }
       }
     }
@@ -406,7 +411,8 @@ const startConversation = async (req, res, next) => {
         name: otherParticipant.name,
         surname: otherParticipant.surname,
         picture: otherParticipant.profile?.picture
-      }
+      },
+      conversationKey: conversation.conversationKey
     };
 
     res.status(StatusCodes.CREATED).json({
