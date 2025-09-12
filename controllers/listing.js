@@ -50,12 +50,6 @@ const createListing = async (req, res, next) => {
 
     await listing.save();
 
-    // Add listing to user's listings array
-    await User.findByIdAndUpdate(
-      userId,
-      { $push: { listings: listing._id } }
-    );
-
     // Populate author info, category info and instrument info
     await listing.populate('authorInfo');
     await listing.populate('categoryInfo');
@@ -312,13 +306,7 @@ const deleteListing = async (req, res, next) => {
       throw new CustomError.UnauthorizedError("Bu işlem için yetkiniz yok");
     }
 
-    // Remove listing from the original owner's listings array
-    await User.findByIdAndUpdate(
-      listing.user,
-      { $pull: { listings: listing._id } }
-    );
-
-    // Delete the listing
+    // Delete the listing (this will trigger the pre-delete middleware to clean up user references)
     await Listing.findByIdAndDelete(id);
 
     res.status(StatusCodes.OK).json({

@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
+const Listing = require("./Listing");
 const AddressSchema = new mongoose.Schema({
   street: { type: String, trim: true },
   city: { type: String, trim: true },
@@ -47,7 +48,7 @@ const ProfileSchema = new mongoose.Schema({
   },
   picture: {
     type: String,
-    default: "https://res-console.cloudinary.com/da2qwsrbv/thumbnails/v1/image/upload/v1757540964/bG9nb19jd3p2bTQ=/drilldown",
+    default: "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
   },
   bio: {
     type: String,
@@ -122,6 +123,42 @@ const UserSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Pre-delete middleware to clean up associated data
+UserSchema.pre('findOneAndDelete', async function(next) {
+  const userId = this.getQuery()._id;
+  
+  try {
+    // Import Listing model here to avoid circular dependency
+    const Listing = require('./Listing');
+    
+    // Delete all listings associated with this user
+    await Listing.deleteMany({ user: userId });
+    
+    console.log(`Deleted all listings for user: ${userId}`);
+    next();
+  } catch (error) {
+    console.error('Error deleting user listings:', error);
+    next(error);
+  }
+});
+
+// Pre-delete middleware for findByIdAndDelete
+UserSchema.pre('deleteOne', async function(next) {
+  const userId = this.getQuery()._id;
+  
+  try {
+    
+    // Delete all listings associated with this user
+    await Listing.deleteMany({ user: userId });
+    
+    console.log(`Deleted all listings for user: ${userId}`);
+    next();
+  } catch (error) {
+    console.error('Error deleting user listings:', error);
+    next(error);
+  }
+});
 
 const User = mongoose.model("User", UserSchema);
 

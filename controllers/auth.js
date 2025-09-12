@@ -6,6 +6,7 @@ const { sendResetPasswordEmail, sendVerificationEmail } = require("../helpers");
 const { generateToken } = require("../services/token.service");
 const { createWelcomeNotification } = require("./notification");
 const bcrypt = require("bcrypt");
+const Listing = require("../models/Listing");
 
 //Register
 const register = async (req, res, next) => {
@@ -40,7 +41,7 @@ const register = async (req, res, next) => {
     // Create Profile document
     const profile = new Profile({
       picture:
-        picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+        picture || "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
     });
     await profile.save();
 
@@ -202,7 +203,7 @@ const login = async (req, res, next) => {
         email: user.email,
         picture:
           user.profile?.picture ||
-          "https://i.ibb.co/WNGQcHLF/profile.png",
+          "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
         status: user.status,
         courseTrial: user.courseTrial,
         theme: user.theme,
@@ -695,6 +696,10 @@ const deleteAccount = async (req, res, next) => {
         message: "Kullanıcı bulunamadı.",
       });
     }
+        
+    // Get count of user's listings before deletion
+    const listingCount = await Listing.countDocuments({ user: userId });
+    
     // Delete profile
     if (user.profile) {
       await Profile.findByIdAndDelete(user.profile);
@@ -709,10 +714,11 @@ const deleteAccount = async (req, res, next) => {
     }
     // Delete tokens
     await Token.deleteMany({ user: userId });
-    // Delete the user
+    // Delete the user (this will trigger the pre-delete middleware to delete listings)
     await User.findByIdAndDelete(userId);
+    
     res.status(200).json({
-      message: "Hesabınız başarıyla silindi.",
+      message: `Hesabınız ve ${listingCount} ilanınız başarıyla silindi.`,
     });
   } catch (error) {
     next(error);
@@ -748,7 +754,7 @@ const googleAuth = async (req, res, next) => {
 
       // Create Profile document
       const profile = new Profile({
-        picture: picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+        picture: "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
       });
       await profile.save();
 
@@ -821,7 +827,7 @@ const googleAuth = async (req, res, next) => {
         name: user.name,
         surname: user.surname,
         email: user.email,
-        picture: user.profile?.picture || picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+        picture: user.profile?.picture || picture || "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
         status: user.status,
         courseTrial: user.courseTrial,
         theme: user.theme,
@@ -892,7 +898,7 @@ const googleLogin = async (req, res, next) => {
         name: user.name,
         surname: user.surname,
         email: user.email,
-        picture: user.profile?.picture || picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+        picture: user.profile?.picture || picture || "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
         status: user.status,
         courseTrial: user.courseTrial,
         theme: user.theme,
@@ -928,7 +934,7 @@ const googleRegister = async (req, res, next) => {
 
     // Create Profile document
     const profile = new Profile({
-      picture: picture || "https://i.ibb.co/WNGQcHLF/profile.png",
+      picture: picture || "https://res.cloudinary.com/da2qwsrbv/image/upload/v1757687384/sj3lcvvd7mjuuwpzann8.png",
     });
     await profile.save();
 
@@ -1015,6 +1021,9 @@ const deleteUser = async (req, res, next) => {
       throw new CustomError.UnauthorizedError("Admin kullanıcıları silemezsiniz");
     }
 
+    // Get count of user's listings before deletion
+    const listingCount = await Listing.countDocuments({ user: id });
+    
     // Delete profile
     if (user.profile) {
       await Profile.findByIdAndDelete(user.profile);
@@ -1029,12 +1038,13 @@ const deleteUser = async (req, res, next) => {
     }
     // Delete tokens
     await Token.deleteMany({ user: id });
-    // Delete the user
+    
+    // Delete the user (this will trigger the pre-delete middleware to delete listings)
     await User.findByIdAndDelete(id);
 
     res.status(StatusCodes.OK).json({
       success: true,
-      message: "Kullanıcı başarıyla silindi"
+      message: `Kullanıcı ve ${listingCount} ilanı başarıyla silindi`
     });
   } catch (error) {
     next(error);

@@ -103,6 +103,70 @@ ListingSchema.virtual('instrumentInfo', {
   select: 'name active'
 });
 
+// Post-save middleware to add listing to user's listings array
+ListingSchema.post('save', async function(doc, next) {
+  try {
+    if (doc.isNew && doc.user) {
+      const { User } = require('./User');
+      await User.findByIdAndUpdate(
+        doc.user,
+        { $addToSet: { listings: doc._id } }
+      );
+      console.log(`Added listing ${doc._id} to user ${doc.user} listings array`);
+    }
+    next();
+  } catch (error) {
+    console.error('Error adding listing to user listings array:', error);
+    next(error);
+  }
+});
+
+// Pre-delete middleware to clean up user references
+ListingSchema.pre('findOneAndDelete', async function(next) {
+  const listingId = this.getQuery()._id;
+  
+  try {
+    // Find the listing to get the user ID
+    const listing = await this.model.findById(listingId);
+    if (listing && listing.user) {
+      // Remove the listing from user's listings array
+      const { User } = require('./User');
+      await User.findByIdAndUpdate(
+        listing.user,
+        { $pull: { listings: listingId } }
+      );
+      console.log(`Removed listing ${listingId} from user ${listing.user} listings array`);
+    }
+    next();
+  } catch (error) {
+    console.error('Error cleaning up user listing reference:', error);
+    next(error);
+  }
+});
+
+// Pre-delete middleware for deleteOne
+ListingSchema.pre('deleteOne', async function(next) {
+  const listingId = this.getQuery()._id;
+  
+  try {
+    // Find the listing to get the user ID
+    const listing = await this.model.findById(listingId);
+    if (listing && listing.user) {
+      // Remove the listing from user's listings array
+      const { User } = require('./User');
+      await User.findByIdAndUpdate(
+        listing.user,
+        { $pull: { listings: listingId } }
+      );
+      console.log(`Removed listing ${listingId} from user ${listing.user} listings array`);
+    }
+    next();
+  } catch (error) {
+    console.error('Error cleaning up user listing reference:', error);
+    next(error);
+  }
+});
+
 // Index for better query performance
 ListingSchema.index({ category: 1, location: 1, status: 1 });
 ListingSchema.index({ user: 1 });
