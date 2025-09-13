@@ -10,7 +10,7 @@ const NotificationSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: {
-        values: ['welcome', 'listing_created', 'listing_approved', 'listing_rejected', 'message_received', 'system'],
+        values: ['welcome', 'listing_created', 'listing_approved', 'listing_rejected', 'listing_pending', 'listing_archived', 'message_received', 'system'],
         message: '{VALUE} geçerli bir bildirim türü değil'
       },
       required: [true, "Bildirim türü gereklidir"]
@@ -52,7 +52,7 @@ const NotificationSchema = new mongoose.Schema(
     // Sistem bildirimleri için
     systemAction: {
       type: String,
-      enum: ['welcome', 'listing_created', 'listing_approved', 'listing_rejected', 'message_received']
+      enum: ['welcome', 'listing_created', 'listing_approved', 'listing_rejected', 'listing_pending', 'listing_archived', 'message_received']
     }
   },
   { 

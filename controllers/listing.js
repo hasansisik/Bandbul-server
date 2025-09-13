@@ -2,7 +2,13 @@ const Listing = require("../models/Listing");
 const { User } = require("../models/User");
 const { StatusCodes } = require("http-status-codes");
 const CustomError = require("../errors");
-const { createListingCreatedNotification } = require("./notification");
+const { 
+  createListingCreatedNotification,
+  createListingApprovedNotification,
+  createListingRejectedNotification,
+  createListingPendingNotification,
+  createListingArchivedNotification
+} = require("./notification");
 const mongoose = require("mongoose");
 
 // Create new listing
@@ -269,6 +275,14 @@ const updateListing = async (req, res, next) => {
       // Clear previous approval info
       listing.approvedBy = undefined;
       listing.approvedAt = undefined;
+      
+      // Create listing pending notification
+      try {
+        await createListingPendingNotification(listing.user, listing._id, listing.title);
+      } catch (notificationError) {
+        console.error('Listing pending notification failed:', notificationError);
+        // Don't fail update if notification creation fails
+      }
     }
 
     await listing.save();
@@ -319,7 +333,97 @@ const deleteListing = async (req, res, next) => {
   }
 };
 
-// Toggle listing status (active/inactive/archived)
+// Update listing status (flexible - any status to any status)
+const updateListingStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, reason } = req.body;
+    const userId = req.user.userId;
+    const userRole = req.user.role;
+
+    const listing = await Listing.findById(id);
+
+    if (!listing) {
+      throw new CustomError.NotFoundError("İlan bulunamadı");
+    }
+
+    // Check if user owns the listing or is admin
+    if (listing.user.toString() !== userId && userRole !== 'admin') {
+      throw new CustomError.UnauthorizedError("Bu işlem için yetkiniz yok");
+    }
+
+    // Validate status
+    const validStatuses = ['active', 'pending', 'archived', 'rejected', 'inactive'];
+    if (!validStatuses.includes(status)) {
+      throw new CustomError.BadRequestError("Geçersiz durum değeri");
+    }
+
+    const previousStatus = listing.status;
+    listing.status = status;
+
+    // If rejected, add rejection reason
+    if (status === 'rejected') {
+      listing.rejectionReason = reason || 'Belirtilmemiş neden';
+    } else {
+      listing.rejectionReason = undefined;
+    }
+
+    // If approved, set approval info
+    if (status === 'active') {
+      listing.approvedBy = userId;
+      listing.approvedAt = new Date();
+    } else {
+      listing.approvedBy = undefined;
+      listing.approvedAt = undefined;
+    }
+    
+    await listing.save();
+
+    // Create notifications based on status change
+    try {
+      if (previousStatus !== status) {
+        switch (status) {
+          case 'active':
+            await createListingApprovedNotification(listing.user, listing._id, listing.title);
+            break;
+          case 'rejected':
+            await createListingRejectedNotification(listing.user, listing._id, listing.title, reason);
+            break;
+          case 'pending':
+            await createListingPendingNotification(listing.user, listing._id, listing.title);
+            break;
+          case 'archived':
+            await createListingArchivedNotification(listing.user, listing._id, listing.title);
+            break;
+        }
+      }
+    } catch (notificationError) {
+      console.error('Status change notification failed:', notificationError);
+      // Don't fail status change if notification creation fails
+    }
+
+    const getStatusMessage = (status) => {
+      switch (status) {
+        case 'active': return 'aktif';
+        case 'archived': return 'arşivlendi';
+        case 'pending': return 'onay bekliyor';
+        case 'rejected': return 'reddedildi';
+        case 'inactive': return 'pasif';
+        default: return 'güncellendi';
+      }
+    };
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: `İlan durumu ${getStatusMessage(listing.status)} olarak güncellendi`,
+      listing
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Toggle listing status (backward compatibility - cycles through statuses)
 const toggleListingStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -337,22 +441,54 @@ const toggleListingStatus = async (req, res, next) => {
       throw new CustomError.UnauthorizedError("Bu işlem için yetkiniz yok");
     }
 
-    // Toggle status between active, inactive, and archived
+    // Cycle through statuses: active -> archived -> pending -> active
+    const previousStatus = listing.status;
     if (listing.status === 'active') {
       listing.status = 'archived';
     } else if (listing.status === 'archived') {
-      listing.status = 'active';
-    } else if (listing.status === 'inactive') {
+      listing.status = 'pending';
+    } else if (listing.status === 'pending') {
       listing.status = 'active';
     } else {
-      listing.status = 'archived';
+      listing.status = 'active'; // Default to active for other statuses
     }
     
     await listing.save();
 
+    // Create notifications based on status change
+    try {
+      if (previousStatus !== listing.status) {
+        switch (listing.status) {
+          case 'active':
+            await createListingApprovedNotification(listing.user, listing._id, listing.title);
+            break;
+          case 'pending':
+            await createListingPendingNotification(listing.user, listing._id, listing.title);
+            break;
+          case 'archived':
+            await createListingArchivedNotification(listing.user, listing._id, listing.title);
+            break;
+        }
+      }
+    } catch (notificationError) {
+      console.error('Status change notification failed:', notificationError);
+      // Don't fail toggle if notification creation fails
+    }
+
+    const getStatusMessage = (status) => {
+      switch (status) {
+        case 'active': return 'aktif';
+        case 'archived': return 'arşivlendi';
+        case 'pending': return 'onay bekliyor';
+        case 'rejected': return 'reddedildi';
+        case 'inactive': return 'pasif';
+        default: return 'güncellendi';
+      }
+    };
+
     res.status(StatusCodes.OK).json({
       success: true,
-      message: `İlan durumu ${listing.status === 'active' ? 'aktif' : listing.status === 'archived' ? 'arsivlendi' : 'pasif'} olarak güncellendi`,
+      message: `İlan durumu ${getStatusMessage(listing.status)} olarak güncellendi`,
       listing
     });
   } catch (error) {
@@ -383,6 +519,14 @@ const approveListing = async (req, res, next) => {
     listing.rejectionReason = undefined; // Clear any previous rejection reason
 
     await listing.save();
+
+    // Create listing approved notification
+    try {
+      await createListingApprovedNotification(listing.user, listing._id, listing.title);
+    } catch (notificationError) {
+      console.error('Listing approved notification failed:', notificationError);
+      // Don't fail approval if notification creation fails
+    }
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -418,6 +562,14 @@ const rejectListing = async (req, res, next) => {
     listing.approvedAt = undefined;
 
     await listing.save();
+
+    // Create listing rejected notification
+    try {
+      await createListingRejectedNotification(listing.user, listing._id, listing.title, reason);
+    } catch (notificationError) {
+      console.error('Listing rejected notification failed:', notificationError);
+      // Don't fail rejection if notification creation fails
+    }
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -466,6 +618,7 @@ module.exports = {
   getUserListings,
   updateListing,
   deleteListing,
+  updateListingStatus,
   toggleListingStatus,
   approveListing,
   rejectListing,

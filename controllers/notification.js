@@ -34,6 +34,23 @@ const createNotification = async (req, res, next) => {
     // Populate user info
     await notification.populate('userInfo');
 
+    // Send WebSocket event for real-time updates
+    if (global.socketServer) {
+      global.socketServer.sendToUser(userId, 'new_notification', {
+        notification: notification.toObject()
+      });
+      
+      // Also update notification stats
+      try {
+        const stats = await getNotificationStats({ user: { userId } }, res, next);
+        global.socketServer.sendToUser(userId, 'notification_stats_updated', {
+          stats: stats
+        });
+      } catch (statsError) {
+        console.error('Failed to send notification stats update:', statsError);
+      }
+    }
+
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Bildirim başarıyla oluşturuldu",
@@ -136,6 +153,13 @@ const markAsRead = async (req, res, next) => {
       throw new CustomError.NotFoundError("Bildirim bulunamadı");
     }
 
+    // Send WebSocket event for real-time updates
+    if (global.socketServer) {
+      global.socketServer.sendToUser(userId, 'notification_stats_updated', {
+        stats: await getNotificationStats({ user: { userId } }, res, next)
+      });
+    }
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Bildirim okundu olarak işaretlendi",
@@ -155,6 +179,13 @@ const markAllAsRead = async (req, res, next) => {
       { user: userId, isDeleted: false, isRead: false },
       { isRead: true }
     );
+
+    // Send WebSocket event for real-time updates
+    if (global.socketServer) {
+      global.socketServer.sendToUser(userId, 'notification_stats_updated', {
+        stats: await getNotificationStats({ user: { userId } }, res, next)
+      });
+    }
 
     res.status(StatusCodes.OK).json({
       success: true,
@@ -217,6 +248,8 @@ const getNotificationStats = async (req, res, next) => {
           listing_created: { $sum: { $cond: [{ $eq: ['$type', 'listing_created'] }, 1, 0] } },
           listing_approved: { $sum: { $cond: [{ $eq: ['$type', 'listing_approved'] }, 1, 0] } },
           listing_rejected: { $sum: { $cond: [{ $eq: ['$type', 'listing_rejected'] }, 1, 0] } },
+          listing_pending: { $sum: { $cond: [{ $eq: ['$type', 'listing_pending'] }, 1, 0] } },
+          listing_archived: { $sum: { $cond: [{ $eq: ['$type', 'listing_archived'] }, 1, 0] } },
           message_received: { $sum: { $cond: [{ $eq: ['$type', 'message_received'] }, 1, 0] } },
           system: { $sum: { $cond: [{ $eq: ['$type', 'system'] }, 1, 0] } }
         }
@@ -233,6 +266,8 @@ const getNotificationStats = async (req, res, next) => {
         listing_created: 0,
         listing_approved: 0,
         listing_rejected: 0,
+        listing_pending: 0,
+        listing_archived: 0,
         message_received: 0,
         system: 0
       }
@@ -316,6 +351,107 @@ const createMessageReceivedNotification = async (userId, conversationId, senderN
   }
 };
 
+// System function to create listing approved notification
+const createListingApprovedNotification = async (userId, listingId, listingTitle) => {
+  try {
+    const notification = new Notification({
+      user: userId,
+      type: 'listing_approved',
+      title: 'İlanınız Onaylandı! ✅',
+      message: `"${listingTitle}" başlıklı ilanınız onaylandı ve artık görünür durumda.`,
+      listingId,
+      systemAction: 'listing_approved',
+      data: {
+        action: 'listing_approved',
+        listingTitle,
+        message: 'İlan onaylandı bildirimi'
+      }
+    });
+
+    await notification.save();
+    return notification;
+  } catch (error) {
+    console.error('Listing approved notification error:', error);
+    throw error;
+  }
+};
+
+// System function to create listing rejected notification
+const createListingRejectedNotification = async (userId, listingId, listingTitle, reason) => {
+  try {
+    const notification = new Notification({
+      user: userId,
+      type: 'listing_rejected',
+      title: 'İlanınız Reddedildi ❌',
+      message: `"${listingTitle}" başlıklı ilanınız reddedildi. Sebep: ${reason || 'Belirtilmemiş'}`,
+      listingId,
+      systemAction: 'listing_rejected',
+      data: {
+        action: 'listing_rejected',
+        listingTitle,
+        reason,
+        message: 'İlan reddedildi bildirimi'
+      }
+    });
+
+    await notification.save();
+    return notification;
+  } catch (error) {
+    console.error('Listing rejected notification error:', error);
+    throw error;
+  }
+};
+
+// System function to create listing pending notification
+const createListingPendingNotification = async (userId, listingId, listingTitle) => {
+  try {
+    const notification = new Notification({
+      user: userId,
+      type: 'listing_pending',
+      title: 'İlanınız Onay Bekliyor ⏳',
+      message: `"${listingTitle}" başlıklı ilanınız onay bekliyor durumuna alındı.`,
+      listingId,
+      systemAction: 'listing_pending',
+      data: {
+        action: 'listing_pending',
+        listingTitle,
+        message: 'İlan onay bekliyor bildirimi'
+      }
+    });
+
+    await notification.save();
+    return notification;
+  } catch (error) {
+    console.error('Listing pending notification error:', error);
+    throw error;
+  }
+};
+
+// System function to create listing archived notification
+const createListingArchivedNotification = async (userId, listingId, listingTitle) => {
+  try {
+    const notification = new Notification({
+      user: userId,
+      type: 'listing_archived',
+      title: 'İlanınız Arşivlendi 📁',
+      message: `"${listingTitle}" başlıklı ilanınız arşivlendi.`,
+      listingId,
+      systemAction: 'listing_archived',
+      data: {
+        action: 'listing_archived',
+        listingTitle,
+        message: 'İlan arşivlendi bildirimi'
+      }
+    });
+
+    await notification.save();
+    return notification;
+  } catch (error) {
+    console.error('Listing archived notification error:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   createNotification,
   getUserNotifications,
@@ -327,5 +463,9 @@ module.exports = {
   // System functions
   createWelcomeNotification,
   createListingCreatedNotification,
-  createMessageReceivedNotification
+  createMessageReceivedNotification,
+  createListingApprovedNotification,
+  createListingRejectedNotification,
+  createListingPendingNotification,
+  createListingArchivedNotification
 };

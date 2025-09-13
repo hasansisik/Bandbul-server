@@ -6,6 +6,7 @@ const {
   getUserListings,
   updateListing,
   deleteListing,
+  updateListingStatus,
   toggleListingStatus,
   approveListing,
   rejectListing,
@@ -25,6 +26,7 @@ router.get('/user/me', isAuthenticated, getUserListings);
 router.put('/:id', isAuthenticated, updateListing);
 router.delete('/:id', isAuthenticated, deleteListing);
 router.patch('/:id/toggle-status', isAuthenticated, toggleListingStatus);
+router.patch('/:id/status', isAuthenticated, updateListingStatus);
 
 // Admin routes
 router.get('/admin/pending', isAuthenticated, getPendingListings);
