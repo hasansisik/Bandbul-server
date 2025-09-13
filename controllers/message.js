@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const { User } = require("../models/User");
 const Message = require("../models/Message");
 const Conversation = require("../models/Conversation");
@@ -33,10 +34,34 @@ const getConversations = async (req, res, next) => {
     })
     .sort({ lastMessageAt: -1 });
 
+    // Get unread counts for each conversation
+    const conversationIds = conversations.map(conv => conv._id);
+    const unreadCounts = await Message.aggregate([
+      {
+        $match: {
+          conversation: { $in: conversationIds },
+          sender: { $ne: new mongoose.Types.ObjectId(userId) },
+          isRead: false
+        }
+      },
+      {
+        $group: {
+          _id: '$conversation',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Create a map for quick lookup
+    const unreadCountMap = {};
+    unreadCounts.forEach(item => {
+      unreadCountMap[item._id.toString()] = item.count;
+    });
+
     // Format conversations for frontend (no duplicate filtering - show all conversations)
     const formattedConversations = conversations.map(conv => {
       const otherParticipant = conv.participants.find(p => p._id.toString() !== userId);
-      const unreadCount = 0; // We'll implement this later with aggregation
+      const unreadCount = unreadCountMap[conv._id.toString()] || 0;
 
       return {
         id: conv._id,
@@ -160,7 +185,8 @@ const sendMessage = async (req, res, next) => {
     const message = new Message({
       conversation: conversationId,
       sender: userId,
-      content: content.trim()
+      content: content.trim(),
+      isRead: false // Explicitly set to false for new messages
     });
 
     await message.save();
@@ -442,7 +468,8 @@ const markAsRead = async (req, res, next) => {
       throw new CustomError.NotFoundError("Konuşma bulunamadı");
     }
 
-    // Mark all unread messages in this conversation as read
+    // Mark all unread messages from OTHER users in this conversation as read
+    // Current user's messages should only be marked as read when the other party reads them
     await Message.updateMany(
       {
         conversation: conversationId,
@@ -455,9 +482,57 @@ const markAsRead = async (req, res, next) => {
       }
     );
 
+    // Send WebSocket notification to conversation participants
+    if (global.socketServer) {
+      global.socketServer.sendToConversation(conversationId, 'messages_read', {
+        conversationId,
+        readBy: userId,
+        readAt: new Date().toISOString()
+      });
+    }
+
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Mesajlar okundu olarak işaretlendi"
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Mark current user's messages as read when other party reads them
+const markUserMessagesAsRead = async (req, res, next) => {
+  try {
+    const { conversationId } = req.params;
+    const userId = req.user.userId;
+
+    // Check if user is participant of this conversation
+    const conversation = await Conversation.findOne({
+      _id: conversationId,
+      participants: userId,
+      isActive: true
+    });
+
+    if (!conversation) {
+      throw new CustomError.NotFoundError("Konuşma bulunamadı");
+    }
+
+    // Mark current user's messages as read
+    await Message.updateMany(
+      {
+        conversation: conversationId,
+        sender: userId,
+        isRead: false
+      },
+      {
+        isRead: true,
+        readAt: new Date()
+      }
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Kullanıcı mesajları okundu olarak işaretlendi"
     });
   } catch (error) {
     next(error);
@@ -633,6 +708,7 @@ module.exports = {
   sendMessage,
   startConversation,
   markAsRead,
+  markUserMessagesAsRead,
   getUnreadCount,
   pollMessages,
   cleanupDuplicateConversations,

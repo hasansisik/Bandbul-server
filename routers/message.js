@@ -5,6 +5,7 @@ const {
   sendMessage,
   startConversation,
   markAsRead,
+  markUserMessagesAsRead,
   getUnreadCount,
   pollMessages,
   cleanupDuplicateConversations,
@@ -34,6 +35,9 @@ router.post('/conversations/start', startConversation);
 
 // Mark messages as read
 router.patch('/conversations/:conversationId/read', markAsRead);
+
+// Mark current user's messages as read
+router.patch('/conversations/:conversationId/user-read', markUserMessagesAsRead);
 
 // Get unread message count
 router.get('/unread-count', getUnreadCount);
