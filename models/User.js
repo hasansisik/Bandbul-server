@@ -135,7 +135,6 @@ UserSchema.pre('findOneAndDelete', async function(next) {
     // Delete all listings associated with this user
     await Listing.deleteMany({ user: userId });
     
-    console.log(`Deleted all listings for user: ${userId}`);
     next();
   } catch (error) {
     console.error('Error deleting user listings:', error);
@@ -152,7 +151,6 @@ UserSchema.pre('deleteOne', async function(next) {
     // Delete all listings associated with this user
     await Listing.deleteMany({ user: userId });
     
-    console.log(`Deleted all listings for user: ${userId}`);
     next();
   } catch (error) {
     console.error('Error deleting user listings:', error);

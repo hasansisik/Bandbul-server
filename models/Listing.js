@@ -112,7 +112,6 @@ ListingSchema.post('save', async function(doc, next) {
         doc.user,
         { $addToSet: { listings: doc._id } }
       );
-      console.log(`Added listing ${doc._id} to user ${doc.user} listings array`);
     }
     next();
   } catch (error) {
@@ -135,7 +134,6 @@ ListingSchema.pre('findOneAndDelete', async function(next) {
         listing.user,
         { $pull: { listings: listingId } }
       );
-      console.log(`Removed listing ${listingId} from user ${listing.user} listings array`);
     }
     next();
   } catch (error) {
@@ -158,7 +156,6 @@ ListingSchema.pre('deleteOne', async function(next) {
         listing.user,
         { $pull: { listings: listingId } }
       );
-      console.log(`Removed listing ${listingId} from user ${listing.user} listings array`);
     }
     next();
   } catch (error) {
