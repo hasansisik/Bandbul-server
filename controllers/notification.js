@@ -13,7 +13,6 @@ const createNotification = async (req, res, next) => {
       message,
       data = {},
       listingId,
-      conversationId,
       systemAction
     } = req.body;
 
@@ -25,7 +24,6 @@ const createNotification = async (req, res, next) => {
       message,
       data,
       listingId,
-      conversationId,
       systemAction
     });
 
@@ -250,7 +248,6 @@ const getNotificationStats = async (req, res, next) => {
           listing_rejected: { $sum: { $cond: [{ $eq: ['$type', 'listing_rejected'] }, 1, 0] } },
           listing_pending: { $sum: { $cond: [{ $eq: ['$type', 'listing_pending'] }, 1, 0] } },
           listing_archived: { $sum: { $cond: [{ $eq: ['$type', 'listing_archived'] }, 1, 0] } },
-          message_received: { $sum: { $cond: [{ $eq: ['$type', 'message_received'] }, 1, 0] } },
           system: { $sum: { $cond: [{ $eq: ['$type', 'system'] }, 1, 0] } }
         }
       }
@@ -268,7 +265,6 @@ const getNotificationStats = async (req, res, next) => {
         listing_rejected: 0,
         listing_pending: 0,
         listing_archived: 0,
-        message_received: 0,
         system: 0
       }
     });
@@ -325,31 +321,6 @@ const createListingCreatedNotification = async (userId, listingId, listingTitle)
   }
 };
 
-// System function to create message received notification
-const createMessageReceivedNotification = async (userId, conversationId, senderName, messagePreview) => {
-  try {
-    const notification = new Notification({
-      user: userId,
-      type: 'message_received',
-      title: `Yeni Mesaj - ${senderName}`,
-      message: messagePreview.length > 50 ? messagePreview.substring(0, 50) + '...' : messagePreview,
-      conversationId,
-      systemAction: 'message_received',
-      data: {
-        action: 'message_received',
-        senderName,
-        messagePreview,
-        message: 'Yeni mesaj bildirimi'
-      }
-    });
-
-    await notification.save();
-    return notification;
-  } catch (error) {
-    console.error('Message received notification error:', error);
-    throw error;
-  }
-};
 
 // System function to create listing approved notification
 const createListingApprovedNotification = async (userId, listingId, listingTitle) => {
@@ -463,7 +434,6 @@ module.exports = {
   // System functions
   createWelcomeNotification,
   createListingCreatedNotification,
-  createMessageReceivedNotification,
   createListingApprovedNotification,
   createListingRejectedNotification,
   createListingPendingNotification,
