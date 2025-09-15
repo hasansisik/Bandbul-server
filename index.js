@@ -34,7 +34,9 @@ app.use(cors({
     origin: [
         'http://localhost:3000',
         'https://bandbul.vercel.app',
-        'https://bandbul-nextjs.vercel.app'
+        'https://bandbul-nextjs.vercel.app',
+        'https://bandbul.com',
+        'https://www.bandbul.com',
     ],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
