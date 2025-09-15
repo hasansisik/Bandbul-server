@@ -8,8 +8,10 @@ class SocketServer {
       cors: {
         origin: [
           process.env.CLIENT_URL || "http://localhost:3000",
-          "https://bandbul.vercel.app",
-          "http://localhost:3000"
+          'https://bandbul.vercel.app',
+          'https://bandbul-nextjs.vercel.app',
+          'https://bandbul.com',
+          'https://www.bandbul.com',
         ],
         methods: ["GET", "POST"],
         credentials: true
