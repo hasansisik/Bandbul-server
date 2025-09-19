@@ -57,6 +57,7 @@ const register = async (req, res, next) => {
       auth: auth._id,
       profile: profile._id,
       isVerified: false,
+      status: 'inactive',
     });
 
     await user.save();
@@ -654,6 +655,7 @@ const verifyEmail = async (req, res) => {
   }
 
   user.isVerified = true;
+  user.status = 'active';
   user.auth.verificationCode = undefined;
   await user.save();
   await user.auth.save();
@@ -770,6 +772,7 @@ const googleAuth = async (req, res, next) => {
         auth: auth._id,
         profile: profile._id,
         isVerified: true, // Google users are automatically verified
+        status: 'active', // Google users are automatically active
       });
 
       await user.save();
@@ -790,6 +793,7 @@ const googleAuth = async (req, res, next) => {
       // Update existing user if needed
       if (!user.isVerified) {
         user.isVerified = true;
+        user.status = 'active';
         await user.save();
       }
     }
@@ -862,6 +866,7 @@ const googleLogin = async (req, res, next) => {
     // Check if user is verified (Google users are automatically verified)
     if (!user.isVerified) {
       user.isVerified = true;
+      user.status = 'active';
       await user.save();
     }
 
@@ -950,6 +955,7 @@ const googleRegister = async (req, res, next) => {
       auth: auth._id,
       profile: profile._id,
       isVerified: true, // Google users are automatically verified
+      status: 'active', // Google users are automatically active
     });
 
     await user.save();

@@ -110,7 +110,7 @@ const UserSchema = new mongoose.Schema(
         values: ['active', 'inactive'],
         message: '{VALUE} geçerli bir durum değil'
       },
-      default: 'active'
+      default: 'inactive'
     },
     theme: {
       type: String,
