@@ -1101,6 +1101,48 @@ const updateUserRole = async (req, res, next) => {
   }
 };
 
+//Update User Status (Admin only)
+const updateUserStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    if (!status || !['active', 'inactive', 'banned'].includes(status)) {
+      throw new CustomError.BadRequestError("Geçersiz durum. Sadece 'active', 'inactive' veya 'banned' durumları kabul edilir");
+    }
+
+    // Check if user exists
+    const user = await User.findById(id);
+    if (!user) {
+      throw new CustomError.NotFoundError("Kullanıcı bulunamadı");
+    }
+
+    // Check if admin is trying to change their own status
+    if (id === req.user.userId) {
+      throw new CustomError.BadRequestError("Kendi durumunuzu değiştiremezsiniz");
+    }
+
+    // Update user status
+    user.status = status;
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Kullanıcı durumu başarıyla güncellendi",
+      user: {
+        _id: user._id,
+        name: user.name,
+        surname: user.surname,
+        email: user.email,
+        status: user.status
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   register,
   googleRegister,
@@ -1119,4 +1161,5 @@ module.exports = {
   deleteAccount,
   deleteUser,
   updateUserRole,
+  updateUserStatus,
 };
