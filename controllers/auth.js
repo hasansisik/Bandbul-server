@@ -735,10 +735,6 @@ const googleAuth = async (req, res, next) => {
       throw new CustomError.BadRequestError("Google bilgileri eksik");
     }
 
-    // Log the received data to debug encoding issues
-    console.log('Google Auth - Received data:', { email, name, surname, googleId });
-
-    // Check if user exists
     let user = await User.findOne({ email })
       .populate("profile")
       .populate("auth");
@@ -746,10 +742,8 @@ const googleAuth = async (req, res, next) => {
     let isNewUser = false;
 
     if (!user) {
-      // Create new user
       isNewUser = true;
       
-      // Create Auth document (minimal for Google users)
       const auth = new Auth({
         password: "google_oauth_user", // Dummy password for Google users
         verificationCode: undefined, // Google users don't need email verification
@@ -932,7 +926,6 @@ const googleRegister = async (req, res, next) => {
       throw new CustomError.BadRequestError("Bu e-posta adresi zaten kayıtlı.");
     }
 
-    // Create Auth document (minimal for Google users)
     const auth = new Auth({
       password: "google_oauth_user", // Dummy password for Google users
       verificationCode: undefined, // Google users don't need email verification
